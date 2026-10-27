@@ -1,0 +1,43 @@
+{
+  "app": { "name": "BYDH", "title": "Build your dream home" },
+  "view": { "label": "View", "2d": "2D plan", "3d": "3D", "split": "Split" },
+  "tools": {
+    "label": "Tools",
+    "select": "Select (V)",
+    "pan": "Pan (H)",
+    "wall": "Draw walls",
+    "comingSoon": "{{tool}} arrives in phase {{phase}}"
+  },
+  "floor": {
+    "label": "Floor",
+    "level": {
+      "basement": "Basement",
+      "ground": "Ground floor",
+      "first": "First floor",
+      "second": "Second floor",
+      "attic": "Attic",
+      "roof": "Roof"
+    }
+  },
+  "project": { "label": "Project", "variant": "Variant" },
+  "inspector": {
+    "title": "Properties",
+    "nothingSelected": "Nothing selected",
+    "hint": "Select a wall, room or object to edit it here.",
+    "floors": "Floors",
+    "walls": "Walls",
+    "rooms": "Rooms"
+  },
+  "plan": {
+    "label": "2D floor plan",
+    "cursor": "Cursor",
+    "scale": "Scale bar",
+    "resetView": "Reset view (0)"
+  },
+  "viewer3d": {
+    "label": "3D view",
+    "loading": "Loading 3D view…",
+    "error": "The 3D view could not start. Your browser may have WebGL disabled."
+  },
+  "language": { "label": "Language", "en": "English", "nl": "Nederlands" }
+}

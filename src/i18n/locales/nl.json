@@ -1,0 +1,43 @@
+{
+  "app": { "name": "BYDH", "title": "Bouw je droomhuis" },
+  "view": { "label": "Weergave", "2d": "2D-plattegrond", "3d": "3D", "split": "Gesplitst" },
+  "tools": {
+    "label": "Gereedschap",
+    "select": "Selecteren (V)",
+    "pan": "Verschuiven (H)",
+    "wall": "Muren tekenen",
+    "comingSoon": "{{tool}} komt in fase {{phase}}"
+  },
+  "floor": {
+    "label": "Verdieping",
+    "level": {
+      "basement": "Kelder",
+      "ground": "Begane grond",
+      "first": "Eerste verdieping",
+      "second": "Tweede verdieping",
+      "attic": "Zolder",
+      "roof": "Dak"
+    }
+  },
+  "project": { "label": "Project", "variant": "Variant" },
+  "inspector": {
+    "title": "Eigenschappen",
+    "nothingSelected": "Niets geselecteerd",
+    "hint": "Selecteer een muur, ruimte of object om het hier te bewerken.",
+    "floors": "Verdiepingen",
+    "walls": "Muren",
+    "rooms": "Ruimtes"
+  },
+  "plan": {
+    "label": "2D-plattegrond",
+    "cursor": "Cursor",
+    "scale": "Schaalbalk",
+    "resetView": "Weergave herstellen (0)"
+  },
+  "viewer3d": {
+    "label": "3D-weergave",
+    "loading": "3D-weergave laden…",
+    "error": "De 3D-weergave kon niet starten. Mogelijk staat WebGL uit in je browser."
+  },
+  "language": { "label": "Taal", "en": "English", "nl": "Nederlands" }
+}
