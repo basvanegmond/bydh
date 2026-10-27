@@ -1,0 +1,19 @@
+node_modules/
+.env
+.env.*
+.env.local
+dist/
+.next/
+*.log
+.DS_Store
+.claude/settings.local.json
+
+# Private: real house plans and address stay local (repo is public)
+docs/plans/
+
+# Tooling output
+coverage/
+playwright-report/
+test-results/
+blob-report/
+*.tsbuildinfo
