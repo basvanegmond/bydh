@@ -1,7 +1,7 @@
 import type { Floor, Id, Vec2, Wall } from '../schema/types';
 import { intersectLines } from '../geometry/segment';
-import { add, angleOf, distance, normalize, perpLeft, scale, sub } from '../geometry/vec2';
-import { nodePosition } from './walls';
+import { add, angleOf, distance, dot, normalize, perpLeft, scale, sub } from '../geometry/vec2';
+import { nodePosition, wallLength } from './walls';
 
 /**
  * Wall footprints with mitred joins. "Left" and "right" are in the wall's own frame,
@@ -34,6 +34,8 @@ interface Incidence {
   isStart: boolean;
   /** Unit direction pointing away from the node along the wall. */
   dir: Vec2;
+  /** Length of the wall (mm). */
+  length: number;
   /** Extents relative to the outgoing direction. */
   left: number;
   right: number;
@@ -54,6 +56,7 @@ function incidencesAt(floor: Floor, nodeId: Id): Incidence[] {
       wall,
       isStart,
       dir: normalize(sub(other, origin)),
+      length: wallLength(floor, wall),
       left: isStart ? left : right,
       right: isStart ? right : left,
     });
@@ -90,7 +93,10 @@ function joinNode(floor: Floor, nodeId: Id, corners: Map<Id, Corners>): void {
     const rightStart = rightEdgePoint(n, next);
     const corner = intersectLines(leftStart, current.dir, rightStart, next.dir);
     const limit = MITRE_LIMIT * Math.max(current.wall.thickness, next.wall.thickness);
-    if (corner && distance(corner, n) <= limit) {
+    // A mitre corner lying past the far end of a short wall would invert its outline.
+    const reach = (inc: Incidence) => (corner ? dot(sub(corner, n), inc.dir) : 0);
+    const withinWalls = reach(current) <= current.length && reach(next) <= next.length;
+    if (corner && withinWalls && distance(corner, n) <= limit) {
       assign(corners, current, 'left', corner);
       assign(corners, next, 'right', corner);
     } else {

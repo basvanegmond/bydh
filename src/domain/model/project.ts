@@ -16,8 +16,14 @@ export function orderedFloors(project: Project): Floor[] {
   return building.floorOrder.flatMap((id) => building.floors[id] ?? []);
 }
 
-/** The floor with this id in the active variant, or the lowest floor when the id is unknown. */
+/** Display only: the floor with this id, or the lowest floor when the id is unknown. Never use for edits (see findFloor). */
 export function resolveFloor(project: Project, floorId: Id | null): Floor | undefined {
   const floors = orderedFloors(project);
   return floors.find((f) => f.id === floorId) ?? floors.find((f) => f.level === 'ground') ?? floors[0];
+}
+
+/** The floor with exactly this id in the active variant (no fallback): use this for edits. */
+export function findFloor(project: Project, floorId: Id | null): Floor | undefined {
+  if (!floorId) return undefined;
+  return orderedFloors(project).find((f) => f.id === floorId);
 }

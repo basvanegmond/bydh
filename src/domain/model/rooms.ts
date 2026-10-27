@@ -131,10 +131,23 @@ function traceFaces(floor: Floor): Face[] {
   return faces;
 }
 
+/** The outer face of each connected wall group: the one with the smallest signed area (0 for a lone wall). */
+function outerFacesOf(faces: Face[]): Face[] {
+  const outer = new Map<Id, Face>();
+  for (const f of faces) {
+    const current = outer.get(f.component);
+    if (!current || f.signedNodeArea < current.signedNodeArea) outer.set(f.component, f);
+  }
+  return [...outer.values()];
+}
+
 /** Enclosed spaces of a floor, with free-standing wall islands cut out as holes. */
 export function detectRoomFaces(floor: Floor): RoomFace[] {
   const faces = traceFaces(floor);
-  const enclosed = faces.filter((f) => f.signedNodeArea > 0 && signedArea(f.interior) > MIN_ROOM_AREA);
+  const outerFaces = outerFacesOf(faces);
+  const enclosed = faces.filter(
+    (f) => !outerFaces.includes(f) && f.signedNodeArea > 0 && signedArea(f.interior) > MIN_ROOM_AREA,
+  );
   const result: (RoomFace & { component: Id })[] = enclosed.map((f) => ({
     component: f.component,
     nodeLoop: f.nodeLoop,
@@ -145,7 +158,7 @@ export function detectRoomFaces(floor: Floor): RoomFace[] {
   }));
   // Each connected group of walls has one negative (outer) face. If it sits inside a room of
   // another group, it is an island (e.g. a free-standing cupboard block) and becomes a hole.
-  for (const outer of faces.filter((f) => f.signedNodeArea < 0)) {
+  for (const outer of outerFaces) {
     const probe = outer.nodeLoop[0];
     if (!probe) continue;
     const host = result
@@ -161,26 +174,72 @@ export function detectRoomFaces(floor: Floor): RoomFace[] {
 
 const faceContains = (face: RoomFace, p: Vec2) => pointInPolygonWithHoles(p, face.nodeLoop, face.holeLoops);
 
+/** Grid sample points inside a room face, used to estimate polygon overlap without clipping. */
+function sampleFace(face: RoomFace, n = 24): Vec2[] {
+  const xs = face.nodeLoop.map((p) => p.x);
+  const ys = face.nodeLoop.map((p) => p.y);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const points: Vec2[] = [];
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const p = { x: x0 + ((i + 0.5) / n) * (x1 - x0), y: y0 + ((j + 0.5) / n) * (y1 - y0) };
+      if (faceContains(face, p)) points.push(p);
+    }
+  }
+  return points;
+}
+
+/** Pairs previous rooms with new faces by largest overlap; returns faceIndex -> room. */
+function matchByOverlap(floor: Floor, faces: RoomFace[], previous: Floor): Map<number, Room> {
+  const oldFaces = detectRoomFaces(previous);
+  const pairs: { faceIndex: number; room: Room; overlap: number }[] = [];
+  for (const room of Object.values(floor.rooms)) {
+    const prevRoom = previous.rooms[room.id];
+    const oldFace = prevRoom && oldFaces.find((f) => faceContains(f, prevRoom.anchor));
+    if (!oldFace) continue;
+    const samples = sampleFace(oldFace);
+    faces.forEach((face, faceIndex) => {
+      const overlap = samples.filter((p) => faceContains(face, p)).length;
+      if (overlap > 0) pairs.push({ faceIndex, room, overlap });
+    });
+  }
+  pairs.sort((p, q) => q.overlap - p.overlap);
+  const result = new Map<number, Room>();
+  const used = new Set<Id>();
+  for (const { faceIndex, room } of pairs) {
+    if (result.has(faceIndex) || used.has(room.id)) continue;
+    result.set(faceIndex, room);
+    used.add(room.id);
+  }
+  return result;
+}
+
 /**
  * Keeps floor.rooms in step with the walls: every enclosed space has exactly one room.
- * A room keeps its identity (name, finish) while its anchor stays inside its space; when a wall
- * splits a space, the half without the anchor becomes a new room; when spaces merge, the first
- * room wins; rooms whose space disappeared are removed.
+ * When `previous` (the floor before the edit) is given, rooms follow the new space that overlaps
+ * their old space most, so resizing a room keeps its name and finish. Otherwise, and for leftovers,
+ * a room keeps its identity while its anchor stays inside its space; when a wall splits a space,
+ * the half without the anchor becomes a new room; when spaces merge, the first room wins; rooms
+ * whose space disappeared are removed.
  */
-export function syncRooms(floor: Floor, defaultFinish: FloorFinish = DEFAULT_FLOOR_FINISH): void {
+export function syncRooms(
+  floor: Floor,
+  defaultFinish: FloorFinish = DEFAULT_FLOOR_FINISH,
+  previous?: Floor,
+): void {
   const faces = detectRoomFaces(floor);
-  const kept = new Set<Id>();
-  for (const face of faces) {
-    const candidates = Object.values(floor.rooms).filter(
-      (r) => !kept.has(r.id) && faceContains(face, r.anchor),
-    );
-    const keeper = candidates[0];
+  const byOverlap = previous ? matchByOverlap(floor, faces, previous) : new Map<number, Room>();
+  const kept = new Set<Id>([...byOverlap.values()].map((r) => r.id));
+  faces.forEach((face, index) => {
+    const keeper =
+      byOverlap.get(index) ??
+      Object.values(floor.rooms).find((r) => !kept.has(r.id) && faceContains(face, r.anchor));
     if (keeper) {
       kept.add(keeper.id);
       if (!pointInPolygonWithHoles(keeper.anchor, face.polygon, face.holes)) {
         keeper.anchor = interiorPoint(face.polygon, face.holes);
       }
-      continue;
+      return;
     }
     const room: Room = {
       id: newId(),
@@ -190,7 +249,7 @@ export function syncRooms(floor: Floor, defaultFinish: FloorFinish = DEFAULT_FLO
     };
     floor.rooms[room.id] = room;
     kept.add(room.id);
-  }
+  });
   for (const id of Object.keys(floor.rooms)) if (!kept.has(id)) delete floor.rooms[id];
 }
 
