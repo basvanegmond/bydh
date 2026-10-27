@@ -141,6 +141,25 @@ function outerFacesOf(faces: Face[]): Face[] {
   return [...outer.values()];
 }
 
+/**
+ * Outer boundary (along the outer wall faces, counter-clockwise) of every connected wall group
+ * that encloses at least one room. Groups without a closed loop have no boundary. Used for slabs.
+ */
+export function outerBoundaries(floor: Floor): Polygon[] {
+  const faces = traceFaces(floor);
+  const outerFaces = outerFacesOf(faces);
+  const closed = new Set<Id>(
+    faces
+      .filter(
+        (f) => !outerFaces.includes(f) && f.signedNodeArea > 0 && signedArea(f.interior) > MIN_ROOM_AREA,
+      )
+      .map((f) => f.component),
+  );
+  return outerFaces
+    .filter((f) => closed.has(f.component) && f.interior.length >= 3)
+    .map((f) => (signedArea(f.interior) < 0 ? [...f.interior].reverse() : f.interior));
+}
+
 /** Enclosed spaces of a floor, with free-standing wall islands cut out as holes. */
 export function detectRoomFaces(floor: Floor): RoomFace[] {
   const faces = traceFaces(floor);
