@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { DEFAULT_WALL_COLOR, FLOOR_MATERIALS, findMaterial, floorFinishFor } from '@/data/materials';
 import { findFloor, resolveFloor } from '@/domain/model/project';
-import { computeRoomGeometry } from '@/domain/model/rooms';
+import { floorGeometry } from '@/domain/model/floorGeometry';
 import { deleteWall, setWallLength, wallLength, wallsAtNode } from '@/domain/model/walls';
 import type { Floor, Room, Underlay, Wall } from '@/domain/schema';
 import { formatArea, formatLength } from '@/domain/units/format';
@@ -193,7 +193,7 @@ function RoomInspector({ floor, room }: { floor: Floor; room: Room }) {
   const { t } = useTranslation();
   const editFloor = useProjectStore((s) => s.editFloor);
   const project = useProjectStore((s) => s.project);
-  const area = computeRoomGeometry(floor)[room.id]?.area ?? 0;
+  const area = floorGeometry(floor).rooms[room.id]?.area ?? 0;
   const update = (label: string, change: (r: Room) => void) =>
     editFloor(label, floor.id, (f) => {
       const r = f.rooms[room.id];

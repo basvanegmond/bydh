@@ -6,9 +6,8 @@ import { DoubleSide } from 'three';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_WALL_COLOR, findMaterial } from '@/data/materials';
 import { boundingBox } from '@/domain/geometry/polygon';
-import { computeWallOutlines } from '@/domain/model/outlines';
+import { floorGeometry } from '@/domain/model/floorGeometry';
 import { mainBuilding, orderedFloors } from '@/domain/model/project';
-import { computeRoomGeometry } from '@/domain/model/rooms';
 import type { WallOutline } from '@/domain/model/outlines';
 import type { RoomGeometry } from '@/domain/model/rooms';
 import { floorElevation } from '@/domain/schema';
@@ -81,8 +80,7 @@ function WallMesh({
 function FloorModel({ floor, project, selection }: { floor: Floor; project: Project; selection: Selection }) {
   const building = mainBuilding(project);
   const elevation = building ? floorElevation(building, floor.id) : 0;
-  const outlines = useMemo(() => computeWallOutlines(floor), [floor]);
-  const rooms = useMemo(() => computeRoomGeometry(floor), [floor]);
+  const { outlines, rooms } = useMemo(() => floorGeometry(floor), [floor]);
   const { select, setActiveFloor } = useViewStore.getState();
 
   const pick = (e: ThreeEvent<MouseEvent>, kind: 'wall' | 'room', id: string) => {
