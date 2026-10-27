@@ -1,10 +1,12 @@
-import { enablePatches, applyPatches, produceWithPatches } from 'immer';
+import { enablePatches, applyPatches, current, produceWithPatches } from 'immer';
 import { create } from 'zustand';
 import { emptyHistory, merge, record, takeRedo, takeUndo } from '@/domain/history/history';
 import type { History, HistoryEntry } from '@/domain/history/history';
-import { activeVariant, mainBuilding, resolveFloor } from '@/domain/model/project';
+import { normalizeFloor } from '@/domain/model/normalize';
+import { activeVariant, findFloor, mainBuilding, orderedFloors } from '@/domain/model/project';
 import { syncRooms } from '@/domain/model/rooms';
 import { createProject } from '@/domain/schema';
+import { useViewStore } from './viewStore';
 import type { Building, Floor, Id, Project, Variant } from '@/domain/schema';
 
 enablePatches();
@@ -27,19 +29,25 @@ interface ProjectState {
   redo: () => void;
 }
 
+/** Floors edited during the open transaction (normalised when it commits). */
+const touchedFloors = new Set<Id>();
+
 export const useProjectStore = create<ProjectState>()((set, get) => ({
   project: createProject('My home'),
   history: emptyHistory(),
   transaction: null,
 
-  loadProject: (project) => set({ project, history: emptyHistory(), transaction: null }),
+  loadProject: (project) => {
+    touchedFloors.clear();
+    set({ project, history: emptyHistory(), transaction: null });
+  },
 
   edit: (label, recipe) => {
-    const [next, patches, inverse] = produceWithPatches(get().project, (draft) => {
-      recipe(draft);
-      draft.updatedAt = new Date().toISOString();
-    });
+    const [produced, patches, inverse] = produceWithPatches(get().project, recipe);
+    // A recipe that changed nothing records nothing (no undo step, no autosave).
     if (patches.length === 0) return;
+    // updatedAt is bookkeeping: set outside the recipe so it is not part of the undo step.
+    const next: Project = { ...produced, updatedAt: new Date().toISOString() };
     const entry: HistoryEntry = { label, patches, inverse };
     const { transaction, history } = get();
     if (transaction) set({ project: next, transaction: merge(transaction, entry) });
@@ -47,11 +55,18 @@ export const useProjectStore = create<ProjectState>()((set, get) => ({
   },
 
   editFloor: (label, floorId, recipe) => {
+    // Edits need an exact floor id; an unknown id is a no-op rather than silently hitting the ground floor.
+    if (!floorId || !findFloor(get().project, floorId)) return;
+    const inTransaction = get().transaction !== null;
+    if (inTransaction) touchedFloors.add(floorId);
     get().edit(label, (draft) => {
-      const floor = resolveFloor(draft, floorId);
+      const floor = findFloor(draft, floorId);
       if (!floor) return;
+      const previous = current(floor); // lets room sync keep names/finishes by overlap
       recipe(floor);
-      syncRooms(floor);
+      // During a drag only rooms are kept live (cheap); wall-graph normalisation runs at drag end.
+      if (!inTransaction) normalizeFloor(floor);
+      syncRooms(floor, undefined, previous);
     });
   },
 
@@ -61,6 +76,19 @@ export const useProjectStore = create<ProjectState>()((set, get) => ({
   },
 
   commitTransaction: () => {
+    if (!get().transaction) return;
+    // Drag ended: restore wall-graph invariants once, as part of the same undo step.
+    const ids = [...touchedFloors];
+    touchedFloors.clear();
+    for (const id of ids) {
+      get().edit('Normalize', (draft) => {
+        const floor = findFloor(draft, id);
+        if (!floor) return;
+        const previous = current(floor);
+        normalizeFloor(floor);
+        syncRooms(floor, undefined, previous);
+      });
+    }
     const { transaction, history } = get();
     if (!transaction) return;
     set({ transaction: null, history: record(history, transaction) });
@@ -68,6 +96,7 @@ export const useProjectStore = create<ProjectState>()((set, get) => ({
 
   cancelTransaction: () => {
     const { transaction, project } = get();
+    touchedFloors.clear();
     if (!transaction) return;
     set({ transaction: null, project: applyPatches(project, transaction.inverse) });
   },
@@ -92,3 +121,22 @@ export const selectActiveVariant = (state: { project: Project }): Variant | unde
 
 export const selectMainBuilding = (state: { project: Project }): Building | undefined =>
   mainBuilding(state.project);
+
+/**
+ * Keeps the per-viewer UI state valid whenever the project changes (load, variant switch, undo):
+ * the active floor must exist in the active variant, and a variant change clears the selection.
+ */
+function syncView(project: Project, previous: Project | null): void {
+  const view = useViewStore.getState();
+  const floors = orderedFloors(project);
+  if (!floors.some((f) => f.id === view.activeFloorId)) {
+    const fallback = floors.find((f) => f.level === 'ground') ?? floors[0];
+    useViewStore.setState({ activeFloorId: fallback?.id ?? null, selection: null });
+  }
+  if (previous && previous.activeVariantId !== project.activeVariantId) view.select(null);
+}
+
+useProjectStore.subscribe((state, prev) => {
+  if (state.project !== prev.project) syncView(state.project, prev.project);
+});
+syncView(useProjectStore.getState().project, null);

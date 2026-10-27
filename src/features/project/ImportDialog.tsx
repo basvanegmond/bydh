@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { appendVariantsInto } from '@/domain/io/merge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { importProjectJson } from '@/storage/projectFiles';
@@ -40,7 +41,11 @@ export function ImportDialog() {
       return;
     }
     if (mode === 'new-project') await openNewProject(result.project);
-    else store.edit('Import variants', (draft) => Object.assign(draft, result.project));
+    else {
+      // Merge into the live draft (not the pre-await snapshot) and only add new entries.
+      const suffix = t('variant.importedSuffix');
+      store.edit('Import variants', (draft) => void appendVariantsInto(draft, result.imported, suffix));
+    }
     close();
   };
 

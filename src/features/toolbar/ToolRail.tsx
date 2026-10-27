@@ -57,8 +57,8 @@ export function ToolRail() {
   const showDimensions = useViewStore((s) => s.showDimensions);
   const toggleDimensions = useViewStore((s) => s.toggleDimensions);
   const activeFloorId = useViewStore((s) => s.activeFloorId);
-  const hasUnderlay = useProjectStore(
-    (s) => Object.keys(resolveFloor(s.project, activeFloorId)?.underlays ?? {}).length > 0,
+  const hasUnderlay = useProjectStore((s) =>
+    Object.values(resolveFloor(s.project, activeFloorId)?.underlays ?? {}).some((u) => !u.locked),
   );
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -66,7 +66,13 @@ export function ToolRail() {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target)) return;
       const next = SHORTCUTS[e.key.toLowerCase()];
-      if (next) setTool(next);
+      if (!next) return;
+      // Switching tools mid-drag would leave the drag's transaction open.
+      if (useProjectStore.getState().transaction) return;
+      const { project } = useProjectStore.getState();
+      const floor = resolveFloor(project, useViewStore.getState().activeFloorId);
+      if (next === 'calibrate' && !Object.values(floor?.underlays ?? {}).some((u) => !u.locked)) return;
+      setTool(next);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

@@ -23,9 +23,11 @@ export function useCalibrateTool(ctx: ToolContext): ToolHandlers {
   const [error, setError] = useState(false);
 
   const underlays = Object.values(ctx.floor?.underlays ?? {});
-  const target: Underlay | undefined =
-    (selection?.kind === 'underlay' ? ctx.floor?.underlays[selection.id] : undefined) ?? underlays[0];
-
+  const selected = selection?.kind === 'underlay' ? ctx.floor?.underlays[selection.id] : undefined;
+  const candidate: Underlay | undefined = selected ?? underlays.find((u) => !u.locked);
+  // A locked background must not be rescaled.
+  const lockedTarget = candidate?.locked === true;
+  const target: Underlay | undefined = lockedTarget ? undefined : candidate;
   const reset = () => {
     setPoints([]);
     setValue('');
@@ -43,7 +45,7 @@ export function useCalibrateTool(ctx: ToolContext): ToolHandlers {
     }
     editFloor('Calibrate background', ctx.floorId, (f) => {
       const u = f.underlays[target.id];
-      if (u) Object.assign(u, result);
+      if (u && !u.locked) Object.assign(u, result);
     });
     reset();
     select({ kind: 'underlay', id: target.id });
@@ -75,7 +77,7 @@ export function useCalibrateTool(ctx: ToolContext): ToolHandlers {
   );
 
   const hint = !target
-    ? t('calibrate.noUnderlay')
+    ? t(lockedTarget ? 'calibrate.locked' : 'calibrate.noUnderlay')
     : points.length === 0
       ? t('calibrate.hint')
       : t('calibrate.hintSecond');

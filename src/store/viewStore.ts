@@ -2,7 +2,10 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { Id } from '@/domain/schema';
 
-export type ViewMode = '2d' | '3d' | 'split';
+export const VIEW_MODES = ['2d', '3d', 'split'] as const;
+export type ViewMode = (typeof VIEW_MODES)[number];
+export const isViewMode = (value: string): value is ViewMode =>
+  (VIEW_MODES as readonly string[]).includes(value);
 export type Tool = 'select' | 'pan' | 'wall' | 'calibrate';
 
 export type Selection = { kind: 'wall' | 'room' | 'underlay'; id: Id } | null;

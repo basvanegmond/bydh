@@ -1,12 +1,13 @@
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { DEFAULT_WALL_COLOR, FLOOR_MATERIALS, findMaterial, floorFinishFor } from '@/data/materials';
-import { resolveFloor } from '@/domain/model/project';
+import { findFloor, resolveFloor } from '@/domain/model/project';
 import { computeRoomGeometry } from '@/domain/model/rooms';
-import { deleteWall, setWallLength, wallLength } from '@/domain/model/walls';
+import { deleteWall, setWallLength, wallLength, wallsAtNode } from '@/domain/model/walls';
 import type { Floor, Room, Underlay, Wall } from '@/domain/schema';
 import { formatArea, formatLength } from '@/domain/units/format';
 import { currentLocale } from '@/i18n';
@@ -14,6 +15,31 @@ import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
 import { CommitInput, Field } from './fields';
 import { cmToMm, mmToCm } from './units';
+
+const JUSTIFICATIONS = ['center', 'left', 'right'] as const;
+const isJustification = (value: string): value is Wall['justification'] =>
+  (JUSTIFICATIONS as readonly string[]).includes(value);
+
+/** Colour picker whose whole drag is one undo step and does not re-run room detection. */
+function ColorField({ id, value, onLive }: { id: string; value: string; onLive: (color: string) => void }) {
+  const finish = () => useProjectStore.getState().commitTransaction();
+  // Never leave the transaction open if the field disappears mid-pick (selection change).
+  useEffect(() => finish, []);
+  return (
+    <input
+      id={id}
+      type="color"
+      value={value}
+      className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent"
+      onChange={(e) => {
+        const store = useProjectStore.getState();
+        if (!store.transaction) store.beginTransaction('Paint wall');
+        onLive(e.target.value);
+      }}
+      onBlur={finish}
+    />
+  );
+}
 
 const selectClass =
   'h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50';
@@ -53,7 +79,9 @@ function WallInspector({ floor, wall }: { floor: Floor; wall: Wall }) {
       if (w) change(w, f);
     });
   const length = wallLength(floor, wall);
+  // Changing the length moves the end node, which would also move locked walls sharing it.
   const locked = wall.locked === true;
+  const lengthLocked = locked || wallsAtNode(floor, wall.endNodeId).some((w) => w.locked);
   const sideColor = (side: 'left' | 'right') => wall.sides[side].color ?? DEFAULT_WALL_COLOR;
 
   return (
@@ -65,7 +93,7 @@ function WallInspector({ floor, wall }: { floor: Floor; wall: Wall }) {
           id="wall-length"
           inputMode="decimal"
           value={mmToCm(length)}
-          disabled={locked}
+          disabled={lengthLocked}
           testId="wall-length"
           onCommit={(v) => {
             const mm = cmToMm(v);
@@ -110,14 +138,14 @@ function WallInspector({ floor, wall }: { floor: Floor; wall: Wall }) {
           className={selectClass}
           value={wall.justification}
           disabled={locked}
-          onChange={(e) =>
-            update(
-              'Change wall position',
-              (w) => void (w.justification = e.target.value as Wall['justification']),
-            )
-          }
+          onChange={(e) => {
+            const next = e.target.value;
+            update('Change wall position', (w) => {
+              if (isJustification(next)) w.justification = next;
+            });
+          }}
         >
-          {(['center', 'left', 'right'] as const).map((j) => (
+          {JUSTIFICATIONS.map((j) => (
             <option key={j} value={j}>
               {t(`inspector.wall.${j}`)}
             </option>
@@ -127,12 +155,15 @@ function WallInspector({ floor, wall }: { floor: Floor; wall: Wall }) {
       <div className="grid grid-cols-2 gap-3">
         {(['left', 'right'] as const).map((side) => (
           <Field key={side} label={t(`inspector.wall.${side}Side`)} htmlFor={`wall-${side}-color`}>
-            <input
+            <ColorField
               id={`wall-${side}-color`}
-              type="color"
               value={sideColor(side)}
-              className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent"
-              onChange={(e) => update('Paint wall', (w) => void (w.sides[side].color = e.target.value))}
+              onLive={(color) =>
+                useProjectStore.getState().edit('Paint wall', (draft) => {
+                  const w = findFloor(draft, floor.id)?.walls[wall.id];
+                  if (w) w.sides[side].color = color;
+                })
+              }
             />
           </Field>
         ))}
@@ -240,6 +271,7 @@ function UnderlayInspector({ floor, underlay }: { floor: Floor; underlay: Underl
           max={1}
           step={0.05}
           value={[underlay.opacity]}
+          disabled={locked}
           onValueChange={([v]) => {
             if (v === undefined) return;
             // One undo step per slider drag.
