@@ -1,1 +1,0 @@
-var e=`/bydh/pr-preview/pr-5/assets/pdf.worker.min-CjEcRF4W.mjs`;export{e as default};
