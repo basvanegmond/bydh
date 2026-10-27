@@ -149,9 +149,8 @@ function v1File(): Json {
 
 describe('migration v1 -> v2', () => {
   it('strips stored elevation and yields a valid current file', () => {
-    expect(SCHEMA_VERSION).toBe(2);
     const migrated = migrateToCurrent(v1File());
-    expect(migrated['schemaVersion']).toBe(2);
+    expect(migrated['schemaVersion']).toBe(SCHEMA_VERSION);
     expect(JSON.stringify(migrated)).not.toContain('"elevation"');
     expect(parseProjectFile(JSON.stringify(v1File())).ok).toBe(true);
   });
@@ -167,5 +166,59 @@ describe('migration v1 -> v2', () => {
     const file = v1File();
     (file['project'] as Json)['variantOrder'] = ['ghost'];
     expect(parseProjectFile(JSON.stringify(file))).toMatchObject({ ok: false, reason: 'validation' });
+  });
+});
+
+/** A frozen v2-shaped file: floors have no `ceilingPlanes`. */
+function v2File(): Json {
+  const file = JSON.parse(serializeProjectFile(toProjectFile(createProject('v2')))) as Json;
+  file['schemaVersion'] = 2;
+  const project = file['project'] as Json;
+  const variant = Object.values(project['variants'] as Record<string, Json>)[0]!;
+  const scene = variant['scene'] as { buildings: Record<string, { floors: Record<string, Json> }> };
+  for (const floor of Object.values(Object.values(scene.buildings)[0]!.floors)) delete floor['ceilingPlanes'];
+  return file;
+}
+
+describe('migration v2 -> v3', () => {
+  it('adds an empty ceilingPlanes record to every floor and yields a valid file', () => {
+    expect(SCHEMA_VERSION).toBe(3);
+    const migrated = migrateToCurrent(v2File());
+    expect(migrated['schemaVersion']).toBe(3);
+    expect(JSON.stringify(migrated)).toContain('"ceilingPlanes":{}');
+    const result = parseProjectFile(JSON.stringify(v2File()));
+    expect(result.ok).toBe(true);
+  });
+
+  it('does not mutate its input', () => {
+    const file = v2File();
+    const before = JSON.stringify(file);
+    migrateToCurrent(file);
+    expect(JSON.stringify(file)).toBe(before);
+  });
+
+  it('chains from v1 through v3', () => {
+    expect(parseProjectFile(JSON.stringify(v1File())).ok).toBe(true);
+  });
+
+  it('validates ceiling planes', () => {
+    const project = createProject('x');
+    const floor = Object.values(Object.values(project.variants)[0]!.scene.buildings)[0]!.floors;
+    const first = Object.values(floor)[0]!;
+    const plane = {
+      id: 'c',
+      eave: { a: { x: 0, y: 0 }, b: { x: 1000, y: 0 } },
+      kneeHeight: 1000,
+      slopeDeg: 30,
+      risesToward: 'left' as const,
+    };
+    first.ceilingPlanes['c'] = plane;
+    expect(parse(project).ok).toBe(true);
+    first.ceilingPlanes['c'] = { ...plane, slopeDeg: 90 };
+    expect(parse(project).ok).toBe(false);
+    first.ceilingPlanes['c'] = { ...plane, slopeDeg: 0 };
+    expect(parse(project).ok).toBe(false);
+    first.ceilingPlanes['c'] = { ...plane, eave: { a: { x: 5, y: 5 }, b: { x: 5, y: 5 } } };
+    expect(issues(project)).toContain('two distinct points');
   });
 });

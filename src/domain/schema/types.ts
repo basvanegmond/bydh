@@ -20,6 +20,7 @@ export type FloorFinish = z.infer<typeof S.FloorFinishSchema>;
 export type Room = z.infer<typeof S.RoomSchema>;
 export type Underlay = z.infer<typeof S.UnderlaySchema>;
 export type DimensionLine = z.infer<typeof S.DimensionLineSchema>;
+export type CeilingPlane = z.infer<typeof S.CeilingPlaneSchema>;
 export type FloorLevel = z.infer<typeof S.FloorLevelSchema>;
 export type Floor = z.infer<typeof S.FloorSchema>;
 export type Stair = z.infer<typeof S.StairSchema>;
