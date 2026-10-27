@@ -1,14 +1,14 @@
 // @vitest-environment node
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
-import { addVariantsFrom, asNewProject } from '@/domain/io/merge';
+import { addVariantsFrom, appendVariantsInto, asNewProject } from '@/domain/io/merge';
 import { orderedFloors } from '@/domain/model/project';
 import { syncRooms } from '@/domain/model/rooms';
 import { createProject, parseProjectFile } from '@/domain/schema';
 import type { Project } from '@/domain/schema';
 import { IndexedDbRepository } from '@/storage/indexedDbRepository';
 import { MemoryRepository } from '@/storage/memoryRepository';
-import { exportProjectJson, importProjectJson } from '@/storage/projectFiles';
+import { deleteProjectWithAssets, exportProjectJson, importProjectJson } from '@/storage/projectFiles';
 import { projectFileName } from '@/storage/fileAccess';
 import { drawLoop, INTERIOR } from '../domain/fixtures';
 
@@ -156,5 +156,81 @@ describe('projectFileName', () => {
   it('makes a safe, readable file name', () => {
     expect(projectFileName('Ons Huis — variant B!')).toBe('ons-huis-variant-b.bydh.json');
     expect(projectFileName('')).toBe('project.bydh.json');
+  });
+});
+
+describe('asset safety on import (ADR 0003)', () => {
+  const bytes = (...n: number[]) => new Blob([new Uint8Array(n)], { type: 'image/png' });
+  const read = async (repo: MemoryRepository, id: string) =>
+    new Uint8Array(await (await repo.getAsset(id))!.blob.arrayBuffer());
+
+  async function exported(data: Blob) {
+    const source = new MemoryRepository();
+    await source.putAsset({ id: 'img1', name: 'plan.png', mime: 'image/png', blob: data });
+    return exportProjectJson(projectWithRoomAndUnderlay(), source);
+  }
+
+  it('skips an existing id with identical bytes', async () => {
+    const target = new MemoryRepository();
+    await target.putAsset({ id: 'img1', name: 'mine.png', mime: 'image/png', blob: bytes(1, 2) });
+    const text = await exported(bytes(1, 2));
+    const result = await importProjectJson(text, target, 'new-project', createProject('x'), '');
+    expect(result.ok && Object.keys(result.imported.library.assets)).toEqual(['img1']);
+    expect((await target.getAsset('img1'))!.name).toBe('mine.png');
+  });
+
+  it('re-keys an id whose bytes differ and rewrites references', async () => {
+    const target = new MemoryRepository();
+    await target.putAsset({ id: 'img1', name: 'mine.png', mime: 'image/png', blob: bytes(9, 9) });
+    const text = await exported(bytes(1, 2));
+    const result = await importProjectJson(text, target, 'new-project', createProject('x'), '');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(await read(target, 'img1')).toEqual(new Uint8Array([9, 9]));
+    const [newId] = Object.keys(result.imported.library.assets);
+    expect(newId).not.toBe('img1');
+    expect(result.imported.library.assets[newId!]!.id).toBe(newId);
+    const floor = orderedFloors(result.project)[0]!;
+    expect(Object.values(floor.underlays)[0]!.assetId).toBe(newId);
+    expect(await read(target, newId!)).toEqual(new Uint8Array([1, 2]));
+  });
+
+  it('deletes only unreferenced images when a project is deleted', async () => {
+    const repo = new MemoryRepository();
+    const a = projectWithRoomAndUnderlay();
+    const b = projectWithRoomAndUnderlay();
+    b.id = 'other';
+    b.library.assets['img2'] = { ...a.library.assets['img1']!, id: 'img2' };
+    Object.values(orderedFloors(b)[0]!.underlays)[0]!.assetId = 'img2';
+    delete b.library.assets['img1'];
+    await repo.putAsset({ id: 'img1', name: 'p', mime: 'image/png', blob: bytes(1) });
+    await repo.putAsset({ id: 'img2', name: 'p', mime: 'image/png', blob: bytes(2) });
+    await repo.saveProject(a);
+    await repo.saveProject(b);
+    await deleteProjectWithAssets(repo, b.id);
+    expect(await repo.getAsset('img1')).toBeDefined();
+    expect(await repo.getAsset('img2')).toBeUndefined();
+  });
+});
+
+describe('live-draft variant import', () => {
+  it('only adds entries and clears dangling basedOnVariantId', () => {
+    const ours = createProject('Ours');
+    const theirs = createProject('Theirs');
+    theirs.variants[theirs.activeVariantId]!.basedOnVariantId = 'not-in-this-project';
+    theirs.library.materials['m'] = {
+      id: 'm',
+      name: 'Paint',
+      kind: 'paint',
+      color: '#ffffff',
+      finish: 'matt',
+    };
+    ours.library.materials['m'] = { id: 'm', name: 'Mine', kind: 'paint', color: '#000000', finish: 'matt' };
+    const before = structuredClone(ours.variants[ours.activeVariantId]);
+    const added = appendVariantsInto(ours, theirs, '(imported)');
+    expect(added[0]!.basedOnVariantId).toBeUndefined();
+    expect(ours.library.materials['m']!.name).toBe('Mine');
+    expect(ours.variants[ours.activeVariantId]).toEqual(before);
+    expect(ours.variantOrder).toHaveLength(2);
   });
 });

@@ -6,11 +6,11 @@ import { DoubleSide } from 'three';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_WALL_COLOR, findMaterial } from '@/data/materials';
 import { boundingBox } from '@/domain/geometry/polygon';
-import { computeWallOutlines } from '@/domain/model/outlines';
-import { orderedFloors } from '@/domain/model/project';
-import { computeRoomGeometry } from '@/domain/model/rooms';
+import { floorGeometry } from '@/domain/model/floorGeometry';
+import { mainBuilding, orderedFloors } from '@/domain/model/project';
 import type { WallOutline } from '@/domain/model/outlines';
 import type { RoomGeometry } from '@/domain/model/rooms';
+import { floorElevation } from '@/domain/schema';
 import type { Floor, Project } from '@/domain/schema';
 import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
@@ -78,8 +78,9 @@ function WallMesh({
 }
 
 function FloorModel({ floor, project, selection }: { floor: Floor; project: Project; selection: Selection }) {
-  const outlines = useMemo(() => computeWallOutlines(floor), [floor]);
-  const rooms = useMemo(() => computeRoomGeometry(floor), [floor]);
+  const building = mainBuilding(project);
+  const elevation = building ? floorElevation(building, floor.id) : 0;
+  const { outlines, rooms } = useMemo(() => floorGeometry(floor), [floor]);
   const { select, setActiveFloor } = useViewStore.getState();
 
   const pick = (e: ThreeEvent<MouseEvent>, kind: 'wall' | 'room', id: string) => {
@@ -98,7 +99,7 @@ function FloorModel({ floor, project, selection }: { floor: Floor; project: Proj
           <RoomFloor
             key={room.roomId}
             room={room}
-            elevation={floor.elevation}
+            elevation={elevation}
             color={selected ? SELECTED : color}
             onPick={(e) => pick(e, 'room', room.roomId)}
           />
@@ -119,8 +120,8 @@ function FloorModel({ floor, project, selection }: { floor: Floor; project: Proj
           <WallMesh
             key={wall.id}
             outline={outline}
-            base={floor.elevation}
-            height={wall.height ?? floor.height}
+            base={elevation}
+            height={wall.height ?? floor.height - floor.slabThickness}
             colors={colors}
             onPick={(e) => pick(e, 'wall', wall.id)}
           />

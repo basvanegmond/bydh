@@ -189,6 +189,9 @@ export function PlanView() {
     return () => svg.removeEventListener('wheel', onWheel);
   }, [updateView]);
 
+  // A tool change or unmount must never leave a drag transaction open (it would swallow later edits).
+  useEffect(() => () => useProjectStore.getState().commitTransaction(), [toolName]);
+
   const toolRef = useRef(tool);
   useEffect(() => {
     toolRef.current = tool;

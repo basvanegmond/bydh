@@ -19,7 +19,7 @@ import { canSaveToFile } from '@/storage/fileAccess';
 import { openProject, usePersistence } from '@/storage/session';
 import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
-import type { ViewMode } from '@/store/viewStore';
+import { isViewMode } from '@/store/viewStore';
 import { openImportDialog } from '../project/importStore';
 import {
   deleteCurrentProject,
@@ -222,7 +222,7 @@ export function TopBar() {
           size="sm"
           variant="outline"
           value={viewMode}
-          onValueChange={(value) => value && setViewMode(value as ViewMode)}
+          onValueChange={(value) => isViewMode(value) && setViewMode(value)}
           aria-label={t('view.label')}
         >
           <ToggleGroupItem value="2d" aria-label={t('view.2d')} data-testid="view-2d">

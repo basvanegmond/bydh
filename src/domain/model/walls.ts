@@ -1,5 +1,5 @@
 import { newId } from '../schema/factories';
-import type { Floor, Id, Vec2, Wall } from '../schema/types';
+import type { Floor, Id, Opening, Vec2, Wall } from '../schema/types';
 import { closestPointOnSegment, intersectSegments, projectParam } from '../geometry/segment';
 import { add, almostEqual, distance, EPSILON_MM, normalize, scale, sub } from '../geometry/vec2';
 
@@ -70,17 +70,33 @@ function createWall(floor: Floor, start: Id, end: Id, props: WallProps): Id {
   return id;
 }
 
-/** Splits a wall at the point closest to `p`; openings beyond the split move to the new piece. */
-export function splitWall(floor: Floor, wallId: Id, p: Vec2): Id {
+/** Openings narrower than the wall piece they sit on are shifted to fit; pieces shorter than this drop them. */
+const MIN_OPENING_HOST_MM = 100;
+
+/** Shrinks/shifts an opening so it lies fully within a wall of the given length; false if it cannot fit. */
+function fitOpening(opening: Opening, wallLen: number): boolean {
+  if (wallLen < MIN_OPENING_HOST_MM) return false;
+  if (opening.width > wallLen) opening.width = wallLen;
+  const half = opening.width / 2;
+  opening.offset = Math.min(Math.max(opening.offset, half), wallLen - half);
+  return true;
+}
+
+/** Keeps every opening within its wall (after walls were shortened, split or merged). */
+export function fitOpenings(floor: Floor): void {
+  for (const opening of Object.values(floor.openings)) {
+    const wall = floor.walls[opening.wallId];
+    if (!wall || !floor.wallNodes[wall.startNodeId] || !floor.wallNodes[wall.endNodeId]) continue;
+    if (!fitOpening(opening, wallLength(floor, wall))) delete floor.openings[opening.id];
+  }
+}
+
+/** Splits a wall at an existing node lying on it; openings follow the piece holding their centre. */
+export function splitWallAtNode(floor: Floor, wallId: Id, nodeId: Id): void {
   const wall = floor.walls[wallId];
   if (!wall) throw new Error(`Unknown wall ${wallId}`);
-  const { a, b } = wallEnds(floor, wall);
-  const { point } = closestPointOnSegment(p, a, b);
-  if (almostEqual(point, a)) return wall.startNodeId;
-  if (almostEqual(point, b)) return wall.endNodeId;
-
-  const nodeId = createNode(floor, point);
-  const splitAt = distance(a, point);
+  const { a } = wallEnds(floor, wall);
+  const splitAt = distance(a, nodePosition(floor, nodeId));
   const newWallId = newId();
   floor.walls[newWallId] = { ...clone(wall), id: newWallId, startNodeId: nodeId };
   wall.endNodeId = nodeId;
@@ -90,6 +106,19 @@ export function splitWall(floor: Floor, wallId: Id, p: Vec2): Id {
       opening.offset -= splitAt;
     }
   }
+  fitOpenings(floor);
+}
+
+/** Splits a wall at the point closest to `p`; openings move to the piece holding their centre. */
+export function splitWall(floor: Floor, wallId: Id, p: Vec2): Id {
+  const wall = floor.walls[wallId];
+  if (!wall) throw new Error(`Unknown wall ${wallId}`);
+  const { a, b } = wallEnds(floor, wall);
+  const { point } = closestPointOnSegment(p, a, b);
+  if (almostEqual(point, a)) return wall.startNodeId;
+  if (almostEqual(point, b)) return wall.endNodeId;
+  const nodeId = createNode(floor, point);
+  splitWallAtNode(floor, wallId, nodeId);
   return nodeId;
 }
 
@@ -154,14 +183,31 @@ export function addWall(
   return created;
 }
 
-/** Removes walls of zero length and duplicate walls between the same pair of nodes. */
-function cleanupWalls(floor: Floor): void {
-  const seen = new Set<string>();
+/**
+ * Removes walls of zero length and duplicate walls between the same pair of nodes.
+ * Openings of a removed duplicate move to the wall that is kept.
+ */
+export function cleanupWalls(floor: Floor): void {
+  const kept = new Map<string, Wall>();
   for (const wall of Object.values(floor.walls)) {
     const key = [wall.startNodeId, wall.endNodeId].sort().join('|');
-    if (wall.startNodeId === wall.endNodeId || seen.has(key)) removeWallOnly(floor, wall.id);
-    else seen.add(key);
+    const twin = kept.get(key);
+    if (wall.startNodeId === wall.endNodeId) {
+      removeWallOnly(floor, wall.id);
+    } else if (twin) {
+      const reversed = twin.startNodeId !== wall.startNodeId;
+      const len = wallLength(floor, twin);
+      for (const opening of Object.values(floor.openings)) {
+        if (opening.wallId !== wall.id) continue;
+        opening.wallId = twin.id;
+        if (reversed) opening.offset = len - opening.offset;
+      }
+      removeWallOnly(floor, wall.id);
+    } else {
+      kept.set(key, wall);
+    }
   }
+  fitOpenings(floor);
 }
 
 function removeWallOnly(floor: Floor, wallId: Id): void {
@@ -171,7 +217,7 @@ function removeWallOnly(floor: Floor, wallId: Id): void {
   }
 }
 
-function removeOrphanNodes(floor: Floor): void {
+export function removeOrphanNodes(floor: Floor): void {
   const used = new Set(Object.values(floor.walls).flatMap((w) => [w.startNodeId, w.endNodeId]));
   for (const id of Object.keys(floor.wallNodes)) if (!used.has(id)) delete floor.wallNodes[id];
 }
@@ -184,7 +230,10 @@ export function moveNode(floor: Floor, nodeId: Id, p: Vec2, mergeTolerance = EPS
   const other = Object.values(floor.wallNodes).find(
     (n) => n.id !== nodeId && distance(n.position, p) <= mergeTolerance,
   );
-  if (!other) return nodeId;
+  if (!other) {
+    fitOpenings(floor);
+    return nodeId;
+  }
   for (const wall of Object.values(floor.walls)) {
     if (wall.startNodeId === nodeId) wall.startNodeId = other.id;
     if (wall.endNodeId === nodeId) wall.endNodeId = other.id;
@@ -202,6 +251,7 @@ export function moveWall(floor: Floor, wallId: Id, delta: Vec2): void {
     const node = floor.wallNodes[nodeId]!;
     node.position = add(node.position, delta);
   }
+  fitOpenings(floor);
 }
 
 /** Sets a wall's length by moving its end node along the wall direction. */
@@ -211,6 +261,7 @@ export function setWallLength(floor: Floor, wallId: Id, length: number): void {
   const { a, b } = wallEnds(floor, wall);
   const dir = normalize(sub(b, a));
   floor.wallNodes[wall.endNodeId]!.position = add(a, scale(dir, length));
+  fitOpenings(floor);
 }
 
 /** Deletes a wall, its openings and any nodes left without walls. */

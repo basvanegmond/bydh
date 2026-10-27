@@ -1,12 +1,13 @@
 import { z } from 'zod';
 
 /**
- * Scene graph, schema version 1. Zod schemas are the source of truth; TypeScript types are inferred.
+ * Scene graph, schema version 2 (v2: floor elevation is derived, see floorElevations()).
+ * Zod schemas are the source of truth; TypeScript types are inferred.
  * Plan space: +X = east, +Y = north, millimetres, degrees counter-clockwise from +X.
  * three.js mapping: x = X/1000, y = elevation/1000, z = -Y/1000 (metres, Y-up).
  * Derived data (wall outlines, room polygons and areas, slab voids) is never stored.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const id = z.string().min(1);
 const mm = z.number().finite();
@@ -161,14 +162,19 @@ export const WindowSpecSchema = z.object({
   type: z.literal('window'),
   operation: z.enum(['fixed', 'tilt-turn', 'casement', 'sliding', 'top-hung']),
   hinge: z.enum(['left', 'right']).optional(),
-  frameColor: hex,
+  /** Optional like the door's frameColor; the renderer falls back to a default frame colour. */
+  frameColor: hex.optional(),
   divisions: z.number().int().nonnegative().optional(),
 });
 
 export const OpeningSchema = z.object({
   ...entityBase,
+  /** Must reference a wall on the same floor (checked by FloorSchema). */
   wallId: id,
-  /** Along the wall axis, from the start node to the opening centre. */
+  /**
+   * Along the wall axis, from the start node to the opening centre. Door `hinge` and `opensTo`
+   * are relative to the wall direction: `left`/`right` as seen walking from start to end node.
+   */
   offset: mm,
   width: mm.positive(),
   height: mm.positive(),
@@ -211,12 +217,13 @@ export const DimensionLineSchema = z.object({ ...entityBase, a: Vec2Schema, b: V
 
 export const FloorLevelSchema = z.enum(['basement', 'ground', 'first', 'second', 'attic', 'roof']);
 
-export const FloorSchema = z.object({
+const FloorShape = z.object({
   ...entityBase,
   level: FloorLevelSchema,
-  /** Finished floor level relative to peil (ground floor = 0). */
-  elevation: mm,
-  /** Floor-to-floor height. */
+  /**
+   * Floor-to-floor height (includes the slab). The finished floor level relative to peil is
+   * derived, not stored: see floorElevations() (the 'ground' floor is 0).
+   */
   height: mm.positive(),
   slabThickness: mm.positive(),
   wallNodes: record(WallNodeSchema),
@@ -229,14 +236,45 @@ export const FloorSchema = z.object({
   dimensions: record(DimensionLineSchema),
 });
 
+export const FloorSchema = FloorShape.superRefine((floor, ctx) => {
+  for (const [key, wall] of Object.entries(floor.walls)) {
+    for (const field of ['startNodeId', 'endNodeId'] as const) {
+      if (!(wall[field] in floor.wallNodes))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['walls', key, field],
+          message: `Wall "${key}" references missing wall node "${wall[field]}"`,
+        });
+    }
+  }
+  for (const [key, opening] of Object.entries(floor.openings)) {
+    if (!(opening.wallId in floor.walls))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['openings', key, 'wallId'],
+        message: `Opening "${key}" references missing wall "${opening.wallId}"`,
+      });
+  }
+});
+
 export const StairSchema = z.object({
   ...entityBase,
   fromFloorId: id,
   toFloorId: id,
   shape: z.enum(['straight', 'quarter-turn', 'half-turn', 'spiral']),
+  /**
+   * Anchor of the stair footprint in plot space: the centre of the bottom step's front edge
+   * (where you step on) for straight, quarter-turn and half-turn stairs; the centre of the
+   * stairwell for spirals. `rotationDeg` turns the footprint around this anchor and points the
+   * run direction (counter-clockwise from +X).
+   */
   position: Vec2Schema,
   rotationDeg: deg,
   width: mm.positive(),
+  /**
+   * Horizontal length of the walking line along the run. Spirals have no straight run: for
+   * them it is the outer diameter of the stairwell (and `width` is the tread width).
+   */
   runLength: mm.positive(),
   steps: z.number().int().positive(),
   turn: z.enum(['left', 'right']).optional(),
@@ -244,17 +282,59 @@ export const StairSchema = z.object({
   cutsVoid: z.boolean(),
 });
 
-export const BuildingSchema = z.object({
-  ...entityBase,
-  /** Outbuilding = bijgebouw / shed. */
-  kind: z.enum(['main', 'outbuilding']),
-  position: Vec2Schema,
-  rotationDeg: deg,
-  floors: record(FloorSchema),
-  /** Bottom to top. */
-  floorOrder: z.array(id),
-  stairs: record(StairSchema),
-});
+export const BuildingSchema = z
+  .object({
+    ...entityBase,
+    /** Outbuilding = bijgebouw / shed. */
+    kind: z.enum(['main', 'outbuilding']),
+    /**
+     * Reserved, not applied yet: floor geometry is stored in plot space, so position must stay
+     * (0, 0) and rotationDeg 0 until a later phase defines a building-to-plot transform.
+     */
+    position: Vec2Schema,
+    /** Reserved, see `position`. */
+    rotationDeg: deg,
+    floors: record(FloorSchema),
+    /** Bottom to top; must list exactly the keys of `floors`. */
+    floorOrder: z.array(id),
+    stairs: record(StairSchema),
+  })
+  .superRefine((building, ctx) => {
+    const seen = new Set<string>();
+    building.floorOrder.forEach((floorId, index) => {
+      if (!(floorId in building.floors))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['floorOrder', index],
+          message: `floorOrder references missing floor "${floorId}"`,
+        });
+      if (seen.has(floorId))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['floorOrder', index],
+          message: `Duplicate floor "${floorId}"`,
+        });
+      seen.add(floorId);
+    });
+    for (const key of Object.keys(building.floors)) {
+      if (!seen.has(key))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['floorOrder'],
+          message: `Floor "${key}" is missing from floorOrder`,
+        });
+    }
+    for (const [key, stair] of Object.entries(building.stairs)) {
+      for (const field of ['fromFloorId', 'toFloorId'] as const) {
+        if (!(stair[field] in building.floors))
+          ctx.addIssue({
+            code: 'custom',
+            path: ['stairs', key, field],
+            message: `Stair "${key}" references missing floor "${stair[field]}"`,
+          });
+      }
+    }
+  });
 
 export const SceneSchema = z.object({ plot: PlotSchema, buildings: record(BuildingSchema) });
 
@@ -328,12 +408,41 @@ export const ProjectSchema = z
     settings: ProjectSettingsSchema,
     library: LibrarySchema,
     variants: record(VariantSchema),
+    /** Must list exactly the keys of `variants`. */
     variantOrder: z.array(id).min(1),
     activeVariantId: id,
   })
-  .refine((p) => p.activeVariantId in p.variants, { message: 'activeVariantId must reference a variant' })
-  .refine((p) => p.variantOrder.every((v) => v in p.variants), {
-    message: 'variantOrder must only reference existing variants',
+  .superRefine((p, ctx) => {
+    if (!(p.activeVariantId in p.variants))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['activeVariantId'],
+        message: 'activeVariantId must reference a variant',
+      });
+    const seen = new Set<string>();
+    p.variantOrder.forEach((variantId, index) => {
+      if (!(variantId in p.variants))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['variantOrder', index],
+          message: `variantOrder references missing variant "${variantId}"`,
+        });
+      if (seen.has(variantId))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['variantOrder', index],
+          message: `Duplicate variant "${variantId}"`,
+        });
+      seen.add(variantId);
+    });
+    for (const key of Object.keys(p.variants)) {
+      if (!seen.has(key))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['variantOrder'],
+          message: `Variant "${key}" is missing from variantOrder`,
+        });
+    }
   });
 
 export const EmbeddedAssetSchema = z.object({ mime: z.string(), base64: z.string() });

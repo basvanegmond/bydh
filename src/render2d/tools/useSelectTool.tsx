@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { add, sub } from '@/domain/geometry/vec2';
-import { deleteWall, moveNode, moveWall } from '@/domain/model/walls';
-import type { Id, Vec2 } from '@/domain/schema';
+import { deleteWall, moveNode, moveWall, wallsAtNode } from '@/domain/model/walls';
+import type { Floor, Id, Vec2 } from '@/domain/schema';
 import { snapPoint } from '@/domain/snapping/snap';
 import type { SnapResult } from '@/domain/snapping/snap';
 import { useProjectStore } from '@/store/projectStore';
@@ -19,6 +19,9 @@ type Drag =
 
 /** Pixels the pointer must travel before a press becomes a drag (so clicks never nudge walls). */
 const DRAG_THRESHOLD_PX = 4;
+/** True when any wall touching one of these nodes is locked (moving the node would move it). */
+const touchesLocked = (floor: Floor, nodeIds: Id[]): boolean =>
+  nodeIds.some((id) => wallsAtNode(floor, id).some((w) => w.locked));
 const roundTo = (value: number, step: number) => (step > 0 ? Math.round(value / step) * step : value);
 
 export function useSelectTool(ctx: ToolContext): ToolHandlers {
@@ -34,10 +37,12 @@ export function useSelectTool(ctx: ToolContext): ToolHandlers {
     const hit = entityAt(e);
     const startScreen = { x: e.clientX, y: e.clientY };
     if (hit?.kind === 'node') {
+      if (touchesLocked(floor, [hit.id])) return;
       drag.current = { kind: 'node', nodeId: hit.id, startScreen, started: false, current: p };
     } else if (hit?.kind === 'wall') {
       select({ kind: 'wall', id: hit.id });
-      if (!floor.walls[hit.id]?.locked) {
+      const wall = floor.walls[hit.id];
+      if (wall && !touchesLocked(floor, [wall.startNodeId, wall.endNodeId])) {
         drag.current = {
           kind: 'wall',
           wallId: hit.id,
@@ -62,6 +67,12 @@ export function useSelectTool(ctx: ToolContext): ToolHandlers {
   const onPointerMove: ToolHandlers['onPointerMove'] = (e, p) => {
     const d = drag.current;
     if (!d) return;
+    if (d.started && !useProjectStore.getState().transaction) {
+      // The transaction was closed under us (tool switch, undo button): abandon the drag.
+      drag.current = null;
+      setNodeSnap(null);
+      return;
+    }
     if (!d.started) {
       if (Math.hypot(e.clientX - d.startScreen.x, e.clientY - d.startScreen.y) < DRAG_THRESHOLD_PX) return;
       d.started = true;
@@ -100,7 +111,7 @@ export function useSelectTool(ctx: ToolContext): ToolHandlers {
     const d = drag.current;
     drag.current = null;
     setNodeSnap(null);
-    if (!d?.started) return;
+    if (!d?.started || !useProjectStore.getState().transaction) return;
     if (d.kind === 'node') {
       // Dropped on another corner: join them.
       editFloor('Move corner', ctx.floorId, (f) => void moveNode(f, d.nodeId, d.current, 1));
@@ -132,7 +143,9 @@ export function useSelectTool(ctx: ToolContext): ToolHandlers {
 
   const selectedWall = selection?.kind === 'wall' ? floor?.walls[selection.id] : undefined;
   const handles =
-    selectedWall && !selectedWall.locked ? [selectedWall.startNodeId, selectedWall.endNodeId] : [];
+    selectedWall && floor && !touchesLocked(floor, [selectedWall.startNodeId, selectedWall.endNodeId])
+      ? [selectedWall.startNodeId, selectedWall.endNodeId]
+      : [];
   const snapScreen = nodeSnap ? planToScreen(ctx.view, nodeSnap.point) : null;
 
   const overlay = (

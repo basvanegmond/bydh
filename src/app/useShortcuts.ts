@@ -11,7 +11,9 @@ export function useShortcuts(): void {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || isTyping(e.target)) return;
       const key = e.key.toLowerCase();
-      const { undo, redo } = useProjectStore.getState();
+      const { undo, redo, transaction } = useProjectStore.getState();
+      // Mid-drag undo/redo would commit the drag and leave the tool with stale state.
+      if (transaction) return;
       if (key === 'z' && !e.shiftKey) undo();
       else if ((key === 'z' && e.shiftKey) || key === 'y') redo();
       else return;

@@ -6,7 +6,7 @@ import type { WallProps } from '@/domain/model/walls';
 export const EXTERIOR: WallProps = { thickness: 300, justification: 'center' };
 export const INTERIOR: WallProps = { thickness: 100, justification: 'center' };
 
-export const emptyFloor = (): Floor => createFloor('ground', 0);
+export const emptyFloor = (): Floor => createFloor('ground');
 
 export function drawLoop(floor: Floor, points: Vec2[], props: WallProps): void {
   for (let i = 0; i < points.length; i++) addWall(floor, points[i]!, points[(i + 1) % points.length]!, props);

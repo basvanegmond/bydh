@@ -16,7 +16,7 @@ function projectWithContent(): Project {
   const project = createProject('Fixture house');
   const variant = project.variants[project.activeVariantId]!;
   const building = Object.values(variant.scene.buildings)[0]!;
-  const first = createFloor('first', 2700);
+  const first = createFloor('first');
   building.floors[first.id] = first;
   building.floorOrder.push(first.id);
   const ground = building.floors[building.floorOrder[0]!]!;

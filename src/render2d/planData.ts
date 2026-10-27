@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
-import { computeWallOutlines } from '@/domain/model/outlines';
+import { floorGeometry } from '@/domain/model/floorGeometry';
 import type { WallOutline } from '@/domain/model/outlines';
 import { resolveFloor } from '@/domain/model/project';
-import { computeRoomGeometry } from '@/domain/model/rooms';
 import type { RoomGeometry } from '@/domain/model/rooms';
 import type { Segment } from '@/domain/geometry/segment';
 import type { Floor, Id, Vec2 } from '@/domain/schema';
@@ -20,9 +19,8 @@ export function usePlanData(): PlanData {
   const project = useProjectStore((s) => s.project);
   const activeFloorId = useViewStore((s) => s.activeFloorId);
   const floor = resolveFloor(project, activeFloorId);
-  const outlines = useMemo(() => (floor ? computeWallOutlines(floor) : {}), [floor]);
-  const rooms = useMemo(() => (floor ? computeRoomGeometry(floor) : {}), [floor]);
-  return { floor, outlines, rooms };
+  const geometry = useMemo(() => (floor ? floorGeometry(floor) : undefined), [floor]);
+  return { floor, outlines: geometry?.outlines ?? {}, rooms: geometry?.rooms ?? {} };
 }
 
 /** Snap targets from a floor, leaving out the given nodes and every wall touching them. */

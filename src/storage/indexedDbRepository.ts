@@ -63,4 +63,8 @@ export class IndexedDbRepository implements ProjectRepository {
   async putAsset(asset: StoredAsset): Promise<void> {
     await this.db.assets.put(asset);
   }
+
+  async deleteAsset(id: Id): Promise<void> {
+    await this.db.assets.delete(id);
+  }
 }

@@ -6,7 +6,9 @@
   "app": {
     "name": "BYDH",
     "title": "Build your dream home",
-    "defaultProjectName": "My home"
+    "defaultProjectName": "My home",
+    "defaultVariantName": "Current layout",
+    "defaultBuildingName": "House"
   },
   "view": {
     "label": "View",
@@ -35,6 +37,7 @@
     "apply": "Apply scale",
     "cancel": "Cancel",
     "invalid": "Enter a distance such as 562 (cm) or 5,62 m.",
+    "locked": "Unlock the background first to calibrate it.",
     "noUnderlay": "Import a floor plan image first."
   },
   "floor": {
@@ -156,5 +159,20 @@
     "label": "Language",
     "en": "English",
     "nl": "Nederlands"
+  },
+  "crash": {
+    "title": "Something went wrong",
+    "description": "The plan could not be shown. Your saved projects are untouched. Open another project or start a new one.",
+    "openOther": "Open: {{name}}",
+    "startNew": "Start a new project",
+    "noProjects": "No other saved projects.",
+    "details": "Details"
+  },
+  "sync": {
+    "changedElsewhere": "This project was changed in another tab. Saving is paused so nothing gets overwritten.",
+    "reload": "Load the other version",
+    "keepMine": "Keep mine (overwrite)",
+    "saveCopy": "Save mine as a copy",
+    "copyName": "{{name}} (copy from this tab)"
   }
 }

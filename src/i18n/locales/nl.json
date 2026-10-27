@@ -6,7 +6,9 @@
   "app": {
     "name": "BYDH",
     "title": "Bouw je droomhuis",
-    "defaultProjectName": "Ons huis"
+    "defaultProjectName": "Ons huis",
+    "defaultVariantName": "Huidige indeling",
+    "defaultBuildingName": "Huis"
   },
   "view": {
     "label": "Weergave",
@@ -35,6 +37,7 @@
     "apply": "Schaal toepassen",
     "cancel": "Annuleren",
     "invalid": "Vul een afstand in, zoals 562 (cm) of 5,62 m.",
+    "locked": "Ontgrendel eerst de achtergrond om te kalibreren.",
     "noUnderlay": "Importeer eerst een plattegrond."
   },
   "floor": {
@@ -156,5 +159,20 @@
     "label": "Taal",
     "en": "English",
     "nl": "Nederlands"
+  },
+  "crash": {
+    "title": "Er ging iets mis",
+    "description": "Het plan kon niet worden getoond. Je opgeslagen projecten zijn niet aangetast. Open een ander project of begin een nieuw project.",
+    "openOther": "Openen: {{name}}",
+    "startNew": "Nieuw project beginnen",
+    "noProjects": "Geen andere opgeslagen projecten.",
+    "details": "Details"
+  },
+  "sync": {
+    "changedElsewhere": "Dit project is in een ander tabblad gewijzigd. Opslaan is gepauzeerd zodat er niets wordt overschreven.",
+    "reload": "Andere versie laden",
+    "keepMine": "Mijn versie behouden (overschrijven)",
+    "saveCopy": "Mijn versie opslaan als kopie",
+    "copyName": "{{name}} (kopie uit dit tabblad)"
   }
 }

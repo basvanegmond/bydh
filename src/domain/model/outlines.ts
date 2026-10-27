@@ -1,7 +1,7 @@
 import type { Floor, Id, Vec2, Wall } from '../schema/types';
 import { intersectLines } from '../geometry/segment';
-import { add, angleOf, distance, normalize, perpLeft, scale, sub } from '../geometry/vec2';
-import { nodePosition } from './walls';
+import { add, angleOf, distance, dot, normalize, perpLeft, scale, sub } from '../geometry/vec2';
+import { nodePosition, wallLength } from './walls';
 
 /**
  * Wall footprints with mitred joins. "Left" and "right" are in the wall's own frame,
@@ -34,6 +34,8 @@ interface Incidence {
   isStart: boolean;
   /** Unit direction pointing away from the node along the wall. */
   dir: Vec2;
+  /** Length of the wall (mm). */
+  length: number;
   /** Extents relative to the outgoing direction. */
   left: number;
   right: number;
@@ -42,10 +44,23 @@ interface Incidence {
 /** Mitre corners further than this × the thicker wall from the node fall back to square ends. */
 const MITRE_LIMIT = 4;
 
-function incidencesAt(floor: Floor, nodeId: Id): Incidence[] {
+/** Walls touching each node, built once per floor so corner joins do not rescan every wall. */
+function wallsByNode(floor: Floor): Map<Id, Wall[]> {
+  const byNode = new Map<Id, Wall[]>();
+  for (const wall of Object.values(floor.walls)) {
+    for (const nodeId of [wall.startNodeId, wall.endNodeId]) {
+      const list = byNode.get(nodeId);
+      if (list) list.push(wall);
+      else byNode.set(nodeId, [wall]);
+    }
+  }
+  return byNode;
+}
+
+function incidencesAt(floor: Floor, nodeId: Id, walls: Wall[]): Incidence[] {
   const origin = nodePosition(floor, nodeId);
   const result: Incidence[] = [];
-  for (const wall of Object.values(floor.walls)) {
+  for (const wall of walls) {
     const isStart = wall.startNodeId === nodeId;
     if (!isStart && wall.endNodeId !== nodeId) continue;
     const other = nodePosition(floor, isStart ? wall.endNodeId : wall.startNodeId);
@@ -54,6 +69,7 @@ function incidencesAt(floor: Floor, nodeId: Id): Incidence[] {
       wall,
       isStart,
       dir: normalize(sub(other, origin)),
+      length: wallLength(floor, wall),
       left: isStart ? left : right,
       right: isStart ? right : left,
     });
@@ -74,9 +90,9 @@ function assign(corners: Map<Id, Corners>, inc: Incidence, side: 'left' | 'right
 const leftEdgePoint = (n: Vec2, inc: Incidence) => add(n, scale(perpLeft(inc.dir), inc.left));
 const rightEdgePoint = (n: Vec2, inc: Incidence) => add(n, scale(perpLeft(inc.dir), -inc.right));
 
-function joinNode(floor: Floor, nodeId: Id, corners: Map<Id, Corners>): void {
+function joinNode(floor: Floor, nodeId: Id, walls: Wall[], corners: Map<Id, Corners>): void {
   const n = nodePosition(floor, nodeId);
-  const incs = incidencesAt(floor, nodeId);
+  const incs = incidencesAt(floor, nodeId, walls);
   if (incs.length === 1) {
     assign(corners, incs[0]!, 'left', leftEdgePoint(n, incs[0]!));
     assign(corners, incs[0]!, 'right', rightEdgePoint(n, incs[0]!));
@@ -90,7 +106,10 @@ function joinNode(floor: Floor, nodeId: Id, corners: Map<Id, Corners>): void {
     const rightStart = rightEdgePoint(n, next);
     const corner = intersectLines(leftStart, current.dir, rightStart, next.dir);
     const limit = MITRE_LIMIT * Math.max(current.wall.thickness, next.wall.thickness);
-    if (corner && distance(corner, n) <= limit) {
+    // A mitre corner lying past the far end of a short wall would invert its outline.
+    const reach = (inc: Incidence) => (corner ? dot(sub(corner, n), inc.dir) : 0);
+    const withinWalls = reach(current) <= current.length && reach(next) <= next.length;
+    if (corner && withinWalls && distance(corner, n) <= limit) {
       assign(corners, current, 'left', corner);
       assign(corners, next, 'right', corner);
     } else {
@@ -102,7 +121,11 @@ function joinNode(floor: Floor, nodeId: Id, corners: Map<Id, Corners>): void {
 
 export function computeWallOutlines(floor: Floor): Record<Id, WallOutline> {
   const corners = new Map<Id, Corners>();
-  for (const nodeId of Object.keys(floor.wallNodes)) joinNode(floor, nodeId, corners);
+  const byNode = wallsByNode(floor);
+  for (const nodeId of Object.keys(floor.wallNodes)) {
+    const walls = byNode.get(nodeId);
+    if (walls) joinNode(floor, nodeId, walls, corners);
+  }
   const outlines: Record<Id, WallOutline> = {};
   for (const wall of Object.values(floor.walls)) {
     const c = corners.get(wall.id);
