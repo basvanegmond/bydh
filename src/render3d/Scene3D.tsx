@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { DEFAULT_WALL_COLOR, findMaterial } from '@/data/materials';
 import { boundingBox } from '@/domain/geometry/polygon';
 import { floorGeometry } from '@/domain/model/floorGeometry';
+import { ceilingSlabThickness } from '@/domain/model/floors';
 import { mainBuilding, orderedFloors, resolveFloor } from '@/domain/model/project';
 import { floorSlabs } from '@/domain/model/slabs';
 import { stairGeometry } from '@/domain/model/stairs';
@@ -15,7 +16,7 @@ import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
 import type { Selection } from '@/store/viewStore';
 import { CeilingMesh, OpeningMesh, RoomFloor, SlabMesh, StepMesh, WallMesh } from './FloorParts';
-import { ceilingPlanePolygon } from './geometry';
+import { ceilingPlanePieces } from './geometry';
 import { visibleFloorIds } from './stack';
 
 const CAP_COLOR = '#e6e1d8';
@@ -33,13 +34,27 @@ interface FloorModelProps {
 
 function FloorModel({ floor, building, elevation, project, selection }: FloorModelProps) {
   const { outlines, rooms } = useMemo(() => floorGeometry(floor), [floor]);
-  const slabs = useMemo(
+  const ceilingSlabMm = ceilingSlabThickness(building, floor.id);
+  // Only stairs that arrive here and cut a void affect the slabs; a stable key keeps unrelated stair
+  // edits (and dragging other stairs) from rebuilding them.
+  const voidStairsKey = JSON.stringify(
+    Object.values(building.stairs).filter((s) => s.toFloorId === floor.id && s.cutsVoid),
+  );
+  const voidStairs = useMemo(() => JSON.parse(voidStairsKey) as Stair[], [voidStairsKey]);
+  const slabs = useMemo(() => floorSlabs(floor, voidStairs), [floor, voidStairs]);
+  const ceilingPieces = useMemo(
     () =>
-      floorSlabs(
-        floor,
-        Object.values(building.stairs).filter((s) => s.toFloorId === floor.id),
+      Object.values(floor.ceilingPlanes).flatMap((plane) =>
+        Object.values(rooms).flatMap((room) =>
+          ceilingPlanePieces(plane, floor, room.polygon, ceilingSlabMm).map((polygon, i) => ({
+            key: `${plane.id}-${room.roomId}-${i}`,
+            plane,
+            polygon,
+            roomId: room.roomId,
+          })),
+        ),
       ),
-    [floor, building.stairs],
+    [floor, rooms, ceilingSlabMm],
   );
   const { select, setActiveFloor } = useViewStore.getState();
 
@@ -93,6 +108,7 @@ function FloorModel({ floor, building, elevation, project, selection }: FloorMod
             outline={outline}
             base={elevation}
             colors={colors}
+            ceilingSlabMm={ceilingSlabMm}
             onPick={(e) => pick(e, 'wall', wall.id)}
           />
         );
@@ -103,21 +119,15 @@ function FloorModel({ floor, building, elevation, project, selection }: FloorMod
           <OpeningMesh key={opening.id} floor={floor} wall={wall} opening={opening} base={elevation} />
         ) : null;
       })}
-      {Object.values(floor.ceilingPlanes).flatMap((plane) =>
-        Object.values(rooms).flatMap((room) => {
-          const polygon = ceilingPlanePolygon(plane, floor, room.polygon);
-          if (polygon.length < 3) return [];
-          return (
-            <CeilingMesh
-              key={`${plane.id}-${room.roomId}`}
-              plane={plane}
-              polygon={polygon}
-              elevation={elevation}
-              color={floor.rooms[room.roomId]?.ceilingColor ?? '#ffffff'}
-            />
-          );
-        }),
-      )}
+      {ceilingPieces.map(({ key, plane, polygon, roomId }) => (
+        <CeilingMesh
+          key={key}
+          plane={plane}
+          polygon={polygon}
+          elevation={elevation}
+          color={floor.rooms[roomId]?.ceilingColor ?? '#ffffff'}
+        />
+      ))}
     </group>
   );
 }

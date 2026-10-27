@@ -5,6 +5,9 @@ import { addWall } from '@/domain/model/walls';
 import {
   DEFAULT_DOOR,
   DEFAULT_WINDOW,
+  defaultWallHeight,
+  maxCeilingAcross,
+  minCeilingAcross,
   nearestWall,
   openingRect,
   placeOpening,
@@ -168,5 +171,40 @@ describe('placeOpening', () => {
     const existing = addOpening(floor, wallId, 650);
     expect(placeOpening(floor, DEFAULT_DOOR, wallId, 650)).toBeNull();
     expect(placeOpening(floor, DEFAULT_DOOR, wallId, 650, existing.id)!.offset).toBe(650);
+  });
+});
+
+describe('wallPieces with sloped ceilings', () => {
+  const gable = (x: number) => Math.min(Math.tan(Math.PI / 6) * x, Math.tan(Math.PI / 6) * (6000 - x));
+
+  it('lowers the piece under a sill so it never pokes through the ceiling', () => {
+    const { floor, wallId } = oneWall(100, 'center', 6000);
+    addOpening(floor, wallId, 3000, { ...windowOver, sillHeight: 900 });
+    const below = wallPieces(floor, wallId, undefined, () => 500).find((p) => p.kind === 'below')!;
+    expect(below.z1).toBe(500);
+    expect(below.z1End).toBe(500);
+    expect(below.topLimit).toBe(900);
+  });
+
+  it('keeps the piece above a window on a gable wall when only the middle clears the head', () => {
+    const { floor, wallId } = oneWall(100, 'center', 6000);
+    addOpening(floor, wallId, 3000, { ...windowOver, width: 1200, height: 1200, sillHeight: 200 });
+    // ceiling is 1386 at both ends of the window (head 1400) but 1732 at the ridge
+    expect(gable(2400)).toBeLessThan(1400);
+    const pieces = wallPieces(floor, wallId, undefined, gable);
+    expect(pieces.some((p) => p.kind === 'above')).toBe(true);
+  });
+
+  it('exports min and max ceiling helpers over a span', () => {
+    expect(minCeilingAcross(gable, 2400, 3600)).toBeCloseTo(gable(2400));
+    expect(maxCeilingAcross(gable, 2400, 3600)).toBeGreaterThan(1650);
+  });
+
+  it('uses the given ceiling slab for the default wall height', () => {
+    const { floor, wallId } = oneWall();
+    const wall = floor.walls[wallId]!;
+    expect(defaultWallHeight(floor, wall)).toBe(floor.height - floor.slabThickness);
+    expect(defaultWallHeight(floor, wall, 120)).toBe(floor.height - 120);
+    expect(wallPieces(floor, wallId, undefined, undefined, 120)[0]!.z1).toBe(floor.height - 120);
   });
 });

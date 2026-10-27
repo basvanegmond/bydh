@@ -1,15 +1,22 @@
 import { area, pointInPolygon, signedArea } from '../geometry/polygon';
 import { dot, normalize, perpLeft, sub, toRadians } from '../geometry/vec2';
 import { newId } from '../schema/factories';
-import type { CeilingPlane, Floor, Polygon, Vec2, Wall } from '../schema/types';
+import type { CeilingPlane, Floor, Opening, Polygon, Vec2, Wall } from '../schema/types';
 import { floorGeometry } from './floorGeometry';
+import { minCeilingAcross } from './openings';
 import { wallExtents } from './outlines';
 import { detectRoomFaces } from './rooms';
 import { wallEnds, wallLength } from './walls';
 
-/** Flat ceiling height of a floor without sloped planes (floor-to-floor height minus the slab). */
-export const flatCeilingHeight = (floor: Pick<Floor, 'height' | 'slabThickness'>): number =>
-  floor.height - floor.slabThickness;
+/**
+ * Flat ceiling height of a floor without sloped planes: floor-to-floor height minus the thickness of
+ * the slab above it. `ceilingSlabMm` defaults to the floor own slab thickness; pass
+ * `ceilingSlabThickness(building, floorId)` (floors.ts) to use the slab of the floor above.
+ */
+export const flatCeilingHeight = (
+  floor: Pick<Floor, 'height' | 'slabThickness'>,
+  ceilingSlabMm: number = floor.slabThickness,
+): number => floor.height - ceilingSlabMm;
 
 /** Unit normal pointing to the rising side of the plane eave line. */
 function risingNormal(plane: CeilingPlane): Vec2 {
@@ -34,8 +41,8 @@ export function planeHeightAt(plane: CeilingPlane, point: Vec2): number {
 }
 
 /** Lowest height over the covering planes, else the flat ceiling `height - slabThickness`. */
-export function ceilingHeightAt(floor: Floor, point: Vec2): number {
-  let result = flatCeilingHeight(floor);
+export function ceilingHeightAt(floor: Floor, point: Vec2, ceilingSlabMm?: number): number {
+  let result = flatCeilingHeight(floor, ceilingSlabMm);
   for (const plane of Object.values(floor.ceilingPlanes)) {
     if (planeCovers(plane, point)) result = Math.min(result, planeHeightAt(plane, point));
   }
@@ -43,8 +50,8 @@ export function ceilingHeightAt(floor: Floor, point: Vec2): number {
 }
 
 /** Top of a wall (mm) at `alongMm` from its start node, clipped by the ceiling planes. */
-export function wallTopAt(floor: Floor, wall: Wall, alongMm: number): number {
-  return wallCeilingHook(floor, wall, wallEnds(floor, wall))(alongMm);
+export function wallTopAt(floor: Floor, wall: Wall, alongMm: number, ceilingSlabMm?: number): number {
+  return wallCeilingHook(floor, wall, wallEnds(floor, wall), ceilingSlabMm)(alongMm);
 }
 
 /**
@@ -56,9 +63,10 @@ export function wallCeilingHook(
   floor: Floor,
   wall: Pick<Wall, 'height'>,
   nodes: { a: Vec2; b: Vec2 },
+  ceilingSlabMm?: number,
 ): (alongMm: number) => number {
   const planes = Object.values(floor.ceilingPlanes);
-  const base = wall.height ?? flatCeilingHeight(floor);
+  const base = wall.height ?? flatCeilingHeight(floor, ceilingSlabMm);
   const length = Math.hypot(nodes.b.x - nodes.a.x, nodes.b.y - nodes.a.y);
   const ux = length > 0 ? (nodes.b.x - nodes.a.x) / length : 0;
   const uy = length > 0 ? (nodes.b.y - nodes.a.y) / length : 0;
@@ -74,7 +82,7 @@ export function wallCeilingHook(
 /* ---------- Half-plane clipping ---------- */
 
 /** Keeps points where `dot(n, p) - c >= 0`. */
-interface HalfPlane {
+export interface HalfPlane {
   n: Vec2;
   c: number;
 }
@@ -100,16 +108,10 @@ export function clipHalfPlane(polygon: Polygon, h: HalfPlane): Polygon {
 
 const flip = (h: HalfPlane): HalfPlane => ({ n: { x: -h.n.x, y: -h.n.y }, c: -h.c });
 
-/** Half-planes of the (convex) region where the plane applies and its ceiling is below `thresholdMm`. */
-function lowRegion(plane: CeilingPlane, thresholdMm: number): HalfPlane[] | null {
-  if (thresholdMm <= plane.kneeHeight) return null;
+/** Half-planes of the (convex) region where the plane applies: the rising side of the eave and the extent. */
+export function coverRegion(plane: CeilingPlane): HalfPlane[] {
   const n = risingNormal(plane);
-  const base = dot(n, plane.eave.a);
-  const dMax = (thresholdMm - plane.kneeHeight) / Math.tan(toRadians(plane.slopeDeg));
-  const region: HalfPlane[] = [
-    { n, c: base },
-    { n: { x: -n.x, y: -n.y }, c: -(base + dMax) },
-  ];
+  const region: HalfPlane[] = [{ n, c: dot(n, plane.eave.a) }];
   const extent = plane.extent;
   if (extent && extent.length >= 3) {
     const sign = signedArea(extent) >= 0 ? 1 : -1;
@@ -123,11 +125,21 @@ function lowRegion(plane: CeilingPlane, thresholdMm: number): HalfPlane[] | null
   return region;
 }
 
+/** Half-planes of the (convex) region where the plane applies and its ceiling is below `thresholdMm`. */
+function lowRegion(plane: CeilingPlane, thresholdMm: number): HalfPlane[] | null {
+  if (thresholdMm <= plane.kneeHeight) return null;
+  const n = risingNormal(plane);
+  const base = dot(n, plane.eave.a);
+  const dMax = (thresholdMm - plane.kneeHeight) / Math.tan(toRadians(plane.slopeDeg));
+  const [eaveSide, ...extentSides] = coverRegion(plane) as [HalfPlane, ...HalfPlane[]];
+  return [eaveSide, { n: { x: -n.x, y: -n.y }, c: -(base + dMax) }, ...extentSides];
+}
+
 const clipAll = (polygon: Polygon, region: HalfPlane[]): Polygon =>
   region.reduce((poly, h) => (poly.length < 3 ? poly : clipHalfPlane(poly, h)), polygon);
 
 /** polygon minus a convex region, as disjoint pieces. */
-function subtractConvex(polygon: Polygon, region: HalfPlane[]): Polygon[] {
+export function subtractConvex(polygon: Polygon, region: HalfPlane[]): Polygon[] {
   const pieces: Polygon[] = [];
   let inside = polygon;
   for (const h of region) {
@@ -156,9 +168,9 @@ function roomPolygons(floor: Floor): Polygon[] {
  * Hole islands in a room are ignored. If the flat ceiling itself is below the threshold, the whole
  * footprint is returned. An `extent` polygon on a plane must be convex.
  */
-export function headroomAreas(floor: Floor, thresholdMm: number): Polygon[] {
+export function headroomAreas(floor: Floor, thresholdMm: number, ceilingSlabMm?: number): Polygon[] {
   const rooms = roomPolygons(floor);
-  if (flatCeilingHeight(floor) < thresholdMm) return significant(rooms);
+  if (flatCeilingHeight(floor, ceilingSlabMm) < thresholdMm) return significant(rooms);
   const result: Polygon[] = [];
   for (const plane of Object.values(floor.ceilingPlanes)) {
     const region = lowRegion(plane, thresholdMm);
@@ -169,8 +181,13 @@ export function headroomAreas(floor: Floor, thresholdMm: number): Polygon[] {
 }
 
 /** Area (mm²) of a room polygon where the ceiling is at least `minHeightMm` (room area minus headroom). */
-export function usableArea(roomPolygon: Polygon, floor: Floor, minHeightMm: number): number {
-  if (flatCeilingHeight(floor) < minHeightMm) return 0;
+export function usableArea(
+  roomPolygon: Polygon,
+  floor: Floor,
+  minHeightMm: number,
+  ceilingSlabMm?: number,
+): number {
+  if (flatCeilingHeight(floor, ceilingSlabMm) < minHeightMm) return 0;
   let pieces: Polygon[] = [roomPolygon];
   for (const plane of Object.values(floor.ceilingPlanes)) {
     const region = lowRegion(plane, minHeightMm);
@@ -178,6 +195,19 @@ export function usableArea(roomPolygon: Polygon, floor: Floor, minHeightMm: numb
     pieces = pieces.flatMap((piece) => subtractConvex(piece, region));
   }
   return significant(pieces).reduce((sum, p) => sum + area(p), 0);
+}
+
+/* ---------- Opening headroom ---------- */
+
+/**
+ * Lowest wall top (mm) across an opening width, sampled along the wall like the 3D wall tops; null when
+ * the host wall cannot be resolved. Compare with `sillHeight + height` to warn that the head hits the roof.
+ */
+export function openingMinCeiling(floor: Floor, opening: Opening, ceilingSlabMm?: number): number | null {
+  const wall = floor.walls[opening.wallId];
+  if (!wall || !floor.wallNodes[wall.startNodeId] || !floor.wallNodes[wall.endNodeId]) return null;
+  const hook = wallCeilingHook(floor, wall, wallEnds(floor, wall), ceilingSlabMm);
+  return minCeilingAcross(hook, opening.offset - opening.width / 2, opening.offset + opening.width / 2);
 }
 
 /* ---------- Roof from walls ---------- */

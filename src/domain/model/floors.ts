@@ -49,6 +49,17 @@ function levelFor(building: Building, position: 'above' | 'below'): FloorLevel {
   return (position === 'above' ? ABOVE : BELOW)[edge.level];
 }
 
+/**
+ * Thickness (mm) of the slab that forms the ceiling of a floor: the slab of the next floor up (each
+ * floor slab sits under its own floor), or the floor own slab thickness for the top floor.
+ */
+export function ceilingSlabThickness(building: Pick<Building, 'floors' | 'floorOrder'>, floorId: Id): number {
+  const floor = building.floors[floorId];
+  const aboveId = building.floorOrder[building.floorOrder.indexOf(floorId) + 1];
+  const above = aboveId ? building.floors[aboveId] : undefined;
+  return above?.slabThickness ?? floor?.slabThickness ?? DEFAULT_NEW_SLAB_MM;
+}
+
 /** Adds an empty floor at the top or bottom of the stack and returns its id. */
 export function addFloor(building: Building, position: 'above' | 'below', opts: AddFloorOptions = {}): Id {
   const floor = createFloor(levelFor(building, position), opts.name);
@@ -102,7 +113,7 @@ export function copyWallsFrom(target: Floor, source: Floor): void {
     if (!start || !end) continue;
     const id = newId();
     target.walls[id] = {
-      ...(JSON.parse(JSON.stringify(wall)) as typeof wall),
+      ...(JSON.parse(JSON.stringify(wall)) as typeof wall), // not structuredClone: the source may be an Immer draft (Proxy)
       id,
       startNodeId: start,
       endNodeId: end,

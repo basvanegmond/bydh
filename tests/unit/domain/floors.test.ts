@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addFloor,
+  ceilingSlabThickness,
   copyWallsFrom,
   describeFloorContents,
   removeFloor,
@@ -9,6 +10,7 @@ import {
 import { floorElevations } from '@/domain/schema/floors';
 import { createBuilding } from '@/domain/schema';
 import type { Building, Stair } from '@/domain/schema';
+import { flatCeilingHeight } from '@/domain/model/ceilings';
 import { INTERIOR, threeRoomFloor } from './fixtures';
 import { addWall } from '@/domain/model/walls';
 
@@ -159,3 +161,17 @@ function addTargetFloor() {
   const b = createBuilding();
   return b.floors[addFloor(b, 'above')]!;
 }
+
+describe('ceilingSlabThickness', () => {
+  it('uses the slab of the floor above, and the own slab on the top floor', () => {
+    const b = createBuilding();
+    const ground = b.floors[b.floorOrder[0]!]!;
+    ground.slabThickness = 300;
+    const first = b.floors[addFloor(b, 'above', { slabThickness: 200 })]!;
+    expect(ceilingSlabThickness(b, ground.id)).toBe(200);
+    expect(ceilingSlabThickness(b, first.id)).toBe(200);
+    first.slabThickness = 250;
+    expect(ceilingSlabThickness(b, ground.id)).toBe(250);
+    expect(flatCeilingHeight(ground, ceilingSlabThickness(b, ground.id))).toBe(ground.height - 250);
+  });
+});

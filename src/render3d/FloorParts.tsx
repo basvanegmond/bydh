@@ -54,6 +54,7 @@ export function WallMesh({
   outline,
   base,
   colors,
+  ceilingSlabMm,
   onPick,
 }: {
   floor: Floor;
@@ -61,10 +62,15 @@ export function WallMesh({
   outline: WallOutline;
   base: number;
   colors: [string, string, string];
+  /** Thickness of the slab above this floor (see ceilingSlabThickness). */
+  ceilingSlabMm: number;
   onPick: Pick3D;
 }) {
   const geometry = useDisposed(
-    useMemo(() => wallGeometry(floor, wall, outline, base), [floor, wall, outline, base]),
+    useMemo(
+      () => wallGeometry(floor, wall, outline, base, undefined, ceilingSlabMm),
+      [floor, wall, outline, base, ceilingSlabMm],
+    ),
   );
   return (
     <mesh geometry={geometry} castShadow receiveShadow onClick={onPick}>

@@ -1,8 +1,16 @@
 import { BufferGeometry, ExtrudeGeometry, Float32BufferAttribute, Path, Shape, ShapeGeometry } from 'three';
 import { signedArea } from '@/domain/geometry/polygon';
 import { dot, normalize, perpLeft, sub, toRadians } from '@/domain/geometry/vec2';
-import { clipHalfPlane, flatCeilingHeight, planeHeightAt, wallCeilingHook } from '@/domain/model/ceilings';
-import { wallPieces } from '@/domain/model/openings';
+import {
+  clipHalfPlane,
+  coverRegion,
+  flatCeilingHeight,
+  planeHeightAt,
+  subtractConvex,
+  wallCeilingHook,
+} from '@/domain/model/ceilings';
+import type { HalfPlane } from '@/domain/model/ceilings';
+import { CEILING_SAMPLE_STEP_MM, wallPieces } from '@/domain/model/openings';
 import type { WallPiece } from '@/domain/model/openings';
 import { wallExtents } from '@/domain/model/outlines';
 import type { WallOutline } from '@/domain/model/outlines';
@@ -55,7 +63,7 @@ export class MeshBuilder {
 }
 
 /** Sloped wall tops are sampled at this spacing along the wall. */
-export const SLOPE_STEP_MM = 250;
+export const SLOPE_STEP_MM = CEILING_SAMPLE_STEP_MM;
 
 interface PieceSpan {
   piece: WallPiece;
@@ -69,14 +77,15 @@ interface PieceSpan {
  */
 function sampledSpans(pieces: WallPiece[], top: ((alongMm: number) => number) | undefined): PieceSpan[] {
   return pieces.flatMap((piece): PieceSpan[] => {
-    if (!top || piece.kind === 'below') return [{ piece, capStart: true, capEnd: true }];
+    if (!top) return [{ piece, capStart: true, capEnd: true }];
     const n = Math.max(1, Math.ceil((piece.x1 - piece.x0) / SLOPE_STEP_MM));
     const spans: PieceSpan[] = [];
     for (let i = 0; i < n; i++) {
       const x0 = piece.x0 + ((piece.x1 - piece.x0) * i) / n;
       const x1 = piece.x0 + ((piece.x1 - piece.x0) * (i + 1)) / n;
-      const t0 = Math.max(top(x0), piece.z0);
-      const t1 = Math.max(top(x1), piece.z0);
+      const cap = piece.topLimit ?? Infinity;
+      const t0 = Math.max(Math.min(top(x0), cap), piece.z0);
+      const t1 = Math.max(Math.min(top(x1), cap), piece.z0);
       if (t0 <= piece.z0 && t1 <= piece.z0) continue;
       spans.push({
         piece: { ...piece, x0, x1, z1: t0, z1End: t1 },
@@ -99,6 +108,7 @@ export function wallGeometry(
   outline: WallOutline,
   baseMm: number,
   openings = Object.values(floor.openings),
+  ceilingSlabMm?: number,
 ): BufferGeometry {
   const { a, b } = wallEnds(floor, wall);
   const length = wallLength(floor, wall);
@@ -106,8 +116,8 @@ export function wallGeometry(
   const left = perpLeft(dir);
   const ext = wallExtents(wall);
   const hasPlanes = Object.keys(floor.ceilingPlanes).length > 0;
-  const hook = hasPlanes ? wallCeilingHook(floor, wall, { a, b }) : undefined;
-  const spans = sampledSpans(wallPieces(floor, wall, openings, hook), hook);
+  const hook = hasPlanes ? wallCeilingHook(floor, wall, { a, b }, ceilingSlabMm) : undefined;
+  const spans = sampledSpans(wallPieces(floor, wall, openings, hook, ceilingSlabMm), hook);
 
   const at = (x: number, lateral: number): Vec2 => ({
     x: a.x + dir.x * x + left.x * lateral,
@@ -205,10 +215,16 @@ function risingNormal(plane: CeilingPlane): Vec2 {
  * and the line where the plane reaches the flat ceiling height, and inside the plane `extent` (convex).
  * Islands (holes) in the room are ignored. Empty when nothing is left.
  */
-export function ceilingPlanePolygon(plane: CeilingPlane, floor: Floor, room: Polygon): Polygon {
+export function ceilingPlanePolygon(
+  plane: CeilingPlane,
+  floor: Floor,
+  room: Polygon,
+  ceilingSlabMm?: number,
+): Polygon {
   const n = risingNormal(plane);
   const base = dot(n, plane.eave.a);
-  const reach = (flatCeilingHeight(floor) - plane.kneeHeight) / Math.tan(toRadians(plane.slopeDeg));
+  const reach =
+    (flatCeilingHeight(floor, ceilingSlabMm) - plane.kneeHeight) / Math.tan(toRadians(plane.slopeDeg));
   if (reach <= 0) return [];
   let poly = clipHalfPlane(room, { n, c: base });
   poly = clipHalfPlane(poly, { n: { x: -n.x, y: -n.y }, c: -(base + reach) });
@@ -224,6 +240,46 @@ export function ceilingPlanePolygon(plane: CeilingPlane, floor: Floor, room: Pol
     });
   }
   return poly.length >= 3 ? poly : [];
+}
+
+/** Where plane `q` (applies and) is lower than plane `p`, as a convex region; null when it never is. */
+function lowerRegion(p: CeilingPlane, q: CeilingPlane, qEarlier: boolean): HalfPlane[] | null {
+  const [np, nq] = [risingNormal(p), risingNormal(q)];
+  const [tp, tq] = [Math.tan(toRadians(p.slopeDeg)), Math.tan(toRadians(q.slopeDeg))];
+  const [bp, bq] = [dot(np, p.eave.a), dot(nq, q.eave.a)];
+  // q is lower where  tq*(nq.x - bq) + kq  <  tp*(np.x - bp) + kp,  i.e. dot(m, x) - c < 0.
+  const m = { x: tq * nq.x - tp * np.x, y: tq * nq.y - tp * np.y };
+  const c = tq * bq - tp * bp + p.kneeHeight - q.kneeHeight;
+  const cover = coverRegion(q);
+  if (Math.hypot(m.x, m.y) < 1e-9) {
+    // Parallel and equal slope: q is lower everywhere (or tied, where the earlier plane wins).
+    return -c < 0 || (-c === 0 && qEarlier) ? cover : null;
+  }
+  return [...cover, { n: { x: -m.x, y: -m.y }, c: -c }];
+}
+
+/**
+ * The visible parts of a plane surface over a room: `ceilingPlanePolygon` minus the places where another
+ * plane of the floor is lower (the ceiling height is the lowest covering plane), so the surfaces of two
+ * planes never pass through each other near a ridge. Returns disjoint pieces.
+ */
+export function ceilingPlanePieces(
+  plane: CeilingPlane,
+  floor: Floor,
+  room: Polygon,
+  ceilingSlabMm?: number,
+): Polygon[] {
+  let pieces: Polygon[] = [ceilingPlanePolygon(plane, floor, room, ceilingSlabMm)].filter(
+    (p) => p.length >= 3,
+  );
+  const planes = Object.values(floor.ceilingPlanes);
+  const self = planes.indexOf(plane);
+  planes.forEach((other, i) => {
+    if (other === plane) return;
+    const region = lowerRegion(plane, other, i < self);
+    if (region) pieces = pieces.flatMap((piece) => subtractConvex(piece, region));
+  });
+  return pieces.filter((p) => p.length >= 3 && Math.abs(signedArea(p)) > 1);
 }
 
 /** Triangulated ceiling surface of one plane over a polygon, at `baseMm` + the plane height. */

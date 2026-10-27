@@ -45,12 +45,44 @@ export interface WallPiece {
   z1: number;
   /** Top at x1 (differs from z1 only where a ceiling hook slopes the wall top). */
   z1End: number;
+  /** Highest the top may be (the sill of a `below` piece); the ceiling can only lower it. */
+  topLimit?: number;
 }
 
 export type CeilingHeightAt = (alongMm: number) => number;
 
-export function defaultWallHeight(floor: Floor, wall: Wall): number {
-  return wall.height ?? floor.height - floor.slabThickness;
+/** Default colour of door and window frames when the opening sets none. */
+export const DEFAULT_OPENING_FRAME_COLOR = '#f2f0ea';
+
+/** Ceiling hooks are sampled at this spacing along the wall (3D wall tops, piece visibility, headroom). */
+export const CEILING_SAMPLE_STEP_MM = 250;
+
+/** Evenly spaced sample positions along [x0, x1], both ends included. */
+function sampleAlong(x0: number, x1: number): number[] {
+  const n = Math.max(1, Math.ceil(Math.abs(x1 - x0) / CEILING_SAMPLE_STEP_MM));
+  return Array.from({ length: n + 1 }, (_, i) => x0 + ((x1 - x0) * i) / n);
+}
+
+/** Lowest ceiling height of a hook across [x0, x1] (sampled, ends included). */
+export function minCeilingAcross(hook: CeilingHeightAt, x0: number, x1: number): number {
+  return Math.min(...sampleAlong(x0, x1).map(hook));
+}
+
+/** Highest ceiling height of a hook across [x0, x1] (sampled, ends included). */
+export function maxCeilingAcross(hook: CeilingHeightAt, x0: number, x1: number): number {
+  return Math.max(...sampleAlong(x0, x1).map(hook));
+}
+
+/**
+ * Default wall height: the floor-to-floor height minus the thickness of the slab above (`ceilingSlabMm`,
+ * default the floor own slab thickness; see `ceilingSlabThickness` in floors.ts).
+ */
+export function defaultWallHeight(
+  floor: Floor,
+  wall: Wall,
+  ceilingSlabMm: number = floor.slabThickness,
+): number {
+  return wall.height ?? floor.height - ceilingSlabMm;
 }
 
 interface Span {
@@ -76,10 +108,14 @@ function makePiece(
   x1: number,
   z0: number,
   tops: [number, number],
+  highestTop: number = Math.max(...tops),
+  topLimit?: number,
 ): WallPiece | null {
   const [t0, t1] = tops;
-  if (x1 - x0 <= 0 || (t0 <= z0 && t1 <= z0)) return null;
-  return { kind, x0, x1, z0, z1: Math.max(t0, z0), z1End: Math.max(t1, z0) };
+  if (x1 - x0 <= 0 || highestTop <= z0) return null;
+  const piece: WallPiece = { kind, x0, x1, z0, z1: Math.max(t0, z0), z1End: Math.max(t1, z0) };
+  if (topLimit !== undefined) piece.topLimit = topLimit;
+  return piece;
 }
 
 /**
@@ -91,13 +127,15 @@ export function wallPieces(
   wallOrId: Wall | Id,
   openings: Opening[] = Object.values(floor.openings),
   ceilingHeightAt?: CeilingHeightAt,
+  ceilingSlabMm?: number,
 ): WallPiece[] {
   const wall = typeof wallOrId === 'string' ? floor.walls[wallOrId] : wallOrId;
   if (!wall) return [];
   const length = wallLength(floor, wall);
-  const wallHeight = defaultWallHeight(floor, wall);
+  const wallHeight = defaultWallHeight(floor, wall, ceilingSlabMm);
   const topAt = (x: number) => Math.min(wallHeight, ceilingHeightAt ? ceilingHeightAt(x) : wallHeight);
   const tops = (x0: number, x1: number): [number, number] => [topAt(x0), topAt(x1)];
+  const highest = (x0: number, x1: number) => Math.max(...sampleAlong(x0, x1).map(topAt));
   const spans = openingSpans(
     openings.filter((o) => o.wallId === wall.id),
     length,
@@ -105,13 +143,25 @@ export function wallPieces(
   const pieces: (WallPiece | null)[] = [];
   let cursor = 0;
   for (const { start, end, opening } of spans) {
-    pieces.push(makePiece('full', cursor, start, 0, tops(cursor, start)));
-    pieces.push(makePiece('below', start, end, 0, [opening.sillHeight, opening.sillHeight]));
-    const head = opening.sillHeight + opening.height;
-    pieces.push(makePiece('above', start, end, head, tops(start, end)));
+    pieces.push(makePiece('full', cursor, start, 0, tops(cursor, start), highest(cursor, start)));
+    const sill = opening.sillHeight;
+    const [b0, b1] = tops(start, end);
+    pieces.push(
+      makePiece(
+        'below',
+        start,
+        end,
+        0,
+        [Math.min(sill, b0), Math.min(sill, b1)],
+        Math.min(sill, highest(start, end)),
+        sill,
+      ),
+    );
+    const head = sill + opening.height;
+    pieces.push(makePiece('above', start, end, head, tops(start, end), highest(start, end)));
     cursor = Math.max(cursor, end);
   }
-  pieces.push(makePiece('full', cursor, length, 0, tops(cursor, length)));
+  pieces.push(makePiece('full', cursor, length, 0, tops(cursor, length), highest(cursor, length)));
   return pieces.filter((p): p is WallPiece => p !== null);
 }
 

@@ -4,7 +4,13 @@ import { floorSlabs } from '@/domain/model/slabs';
 import { addWall } from '@/domain/model/walls';
 import { createFloor, newId } from '@/domain/schema';
 import type { CeilingPlane, Floor, Opening } from '@/domain/schema';
-import { ceilingPlanePolygon, prismGeometry, slabGeometry, wallGeometry } from '@/render3d/geometry';
+import {
+  ceilingPlanePieces,
+  ceilingPlanePolygon,
+  prismGeometry,
+  slabGeometry,
+  wallGeometry,
+} from '@/render3d/geometry';
 import { boxesGeometry, openingParts } from '@/render3d/openings3d';
 import { isStackMode, visibleFloorIds } from '@/render3d/stack';
 
@@ -240,5 +246,60 @@ describe('visibleFloorIds', () => {
     expect(visibleFloorIds(ids, null, 'active').size).toBe(3);
     expect(isStackMode('upTo')).toBe(true);
     expect(isStackMode('nope')).toBe(false);
+  });
+});
+
+describe('ceilingPlanePieces', () => {
+  it('stops each plane at the ridge in a narrow attic', () => {
+    const floor = createFloor('second'); // flat ceiling 2500 is above the ridge (2000)
+    const room = [
+      { x: 0, y: 0 },
+      { x: 3000, y: 0 },
+      { x: 3000, y: 4000 },
+      { x: 0, y: 4000 },
+    ];
+    const west: CeilingPlane = {
+      id: newId(),
+      eave: { a: { x: 0, y: 0 }, b: { x: 0, y: 4000 } },
+      kneeHeight: 500,
+      slopeDeg: 45,
+      risesToward: 'right',
+    };
+    const east: CeilingPlane = {
+      id: newId(),
+      eave: { a: { x: 3000, y: 4000 }, b: { x: 3000, y: 0 } },
+      kneeHeight: 500,
+      slopeDeg: 45,
+      risesToward: 'right',
+    };
+    floor.ceilingPlanes[west.id] = west;
+    floor.ceilingPlanes[east.id] = east;
+    // each plane alone would reach the flat ceiling beyond the ridge
+    expect(Math.max(...ceilingPlanePolygon(west, floor, room).map((p) => p.x))).toBeGreaterThan(1500);
+    const xs = (plane: CeilingPlane) =>
+      ceilingPlanePieces(plane, floor, room).flatMap((poly) => poly.map((p) => p.x));
+    expect(Math.min(...xs(west))).toBeCloseTo(0);
+    expect(Math.max(...xs(west))).toBeCloseTo(1500);
+    expect(Math.min(...xs(east))).toBeCloseTo(1500);
+    expect(Math.max(...xs(east))).toBeCloseTo(3000);
+  });
+
+  it('uses the given ceiling slab for the flat ceiling reach', () => {
+    const floor = createFloor('second');
+    const room = [
+      { x: 0, y: 0 },
+      { x: 6000, y: 0 },
+      { x: 6000, y: 4000 },
+      { x: 0, y: 4000 },
+    ];
+    const plane: CeilingPlane = {
+      id: newId(),
+      eave: { a: { x: 0, y: 0 }, b: { x: 6000, y: 0 } },
+      kneeHeight: 1000,
+      slopeDeg: 45,
+      risesToward: 'left',
+    };
+    const ys = ceilingPlanePolygon(plane, floor, room, floor.slabThickness + 500).map((p) => p.y);
+    expect(Math.max(...ys)).toBeCloseTo(1000);
   });
 });

@@ -98,3 +98,15 @@ describe('wallPlanPolygons', () => {
     expect(quads[1]![1]).toEqual(outline.endRight);
   });
 });
+
+describe('pocket door leaf', () => {
+  it('is centred in the wall thickness, whatever the justification', () => {
+    const rectY = (sides: { left: number; right: number }) => {
+      const r = openingShapes(door({ operation: 'pocket' }), sides)[0] as { y: number; height: number };
+      return r.y + r.height / 2;
+    };
+    expect(rectY({ left: 50, right: 50 })).toBe(0);
+    expect(rectY({ left: 100, right: 0 })).toBe(50); // justification left: wall entirely on the left
+    expect(rectY({ left: 0, right: 100 })).toBe(-50);
+  });
+});

@@ -1,5 +1,6 @@
 import type { BufferGeometry } from 'three';
 import { normalize, perpLeft, sub } from '@/domain/geometry/vec2';
+import { DEFAULT_OPENING_FRAME_COLOR } from '@/domain/model/openings';
 import { wallExtents } from '@/domain/model/outlines';
 import { wallEnds } from '@/domain/model/walls';
 import type { Floor, Opening, Vec2, Wall } from '@/domain/schema';
@@ -24,7 +25,7 @@ export interface OpeningParts {
   leafColor: string;
 }
 
-export const DEFAULT_FRAME_COLOR = '#f2f2f0';
+export const DEFAULT_FRAME_COLOR = DEFAULT_OPENING_FRAME_COLOR;
 export const DEFAULT_LEAF_COLOR = '#d9d4c8';
 export const FRAME_MEMBER_MM = 60;
 const THRESHOLD_MM = 20;

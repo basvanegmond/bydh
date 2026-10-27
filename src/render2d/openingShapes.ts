@@ -71,12 +71,12 @@ function doorShapes(
       ];
     }
     case 'pocket':
-      // The leaf slides into the wall: shown dashed, inside the wall thickness.
+      // The leaf slides into the wall: shown dashed, centred in the wall thickness (not on the node line).
       return [
         {
           kind: 'rect',
           x: hingeAtStart ? -w : 0,
-          y: -LEAF_THICKNESS / 2,
+          y: (sides.left - sides.right) / 2 - LEAF_THICKNESS / 2,
           width: w,
           height: LEAF_THICKNESS,
           dashed: true,

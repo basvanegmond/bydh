@@ -45,8 +45,9 @@ export function translatePlane(plane: CeilingPlane, delta: Vec2): void {
 export function distanceToFlatCeiling(
   plane: CeilingPlane,
   floor: Pick<Floor, 'height' | 'slabThickness'>,
+  ceilingSlabMm?: number,
 ): number | null {
-  const rise = flatCeilingHeight(floor) - plane.kneeHeight;
+  const rise = flatCeilingHeight(floor, ceilingSlabMm) - plane.kneeHeight;
   if (rise <= 0) return null;
   return rise / Math.tan(toRadians(plane.slopeDeg));
 }
