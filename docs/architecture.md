@@ -36,6 +36,17 @@ See `src/domain/schema/schema.ts`. Hierarchy:
 
 The project `Library` (materials, palettes, own catalogue items, asset references) is shared by all variants.
 
+## Derived geometry (Phase 2)
+
+Nothing derived is stored. These pure functions in `src/domain/model/` compute it from the scene:
+
+- **Wall pieces** (`wallPieces` in `openings.ts`): the solid parts of each wall (full-height pieces between openings, a piece below each sill and above each head), with tops clipped by `wallCeilingHook`. The 2D plan draws the pieces that reach the floor; the 3D scene extrudes all of them. One function feeds both views, so they cannot disagree. See ADR 0008.
+- **Slabs** (`floorSlabs` in `slabs.ts`): one slab per connected group of walls (outer boundary, wall thickness included), with the footprint of every stair that arrives on the floor and has `cutsVoid` subtracted as a hole.
+- **Ceiling planes** (`ceilings.ts`): `Floor.ceilingPlanes` are stored (they are the design). `ceilingHeightAt`, wall tops, headroom areas and usable area are derived. See ADR 0007.
+- **Floor geometry cache** (`floorGeometry.ts`): wall outlines and room geometry are computed once per frozen (committed) floor object in a `WeakMap`, shared by the 2D plan, the 3D scene and the inspector. Drafts are never cached.
+- **Floor elevations** (`floorElevations`): derived from `floorOrder` and floor heights, so changing a height moves every floor above it.
+- **Schema v3**: adds `Floor.ceilingPlanes` (the v2 to v3 migration sets `{}`).
+
 ## Data flow
 
 - **Edit**: a tool calls a store action → the action applies a pure domain operation through Immer and records patches for undo (Phase 1).
