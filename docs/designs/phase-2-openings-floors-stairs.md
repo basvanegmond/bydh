@@ -1,6 +1,6 @@
 # Phase 2 design: doors, windows, floors and stairs
 
-Status: draft for review (2026-10-27). Nothing in this document is built yet.
+Status: draft v2, updated with Bas's answers (2026-10-27). Nothing in this document is built yet.
 
 ## Goal
 
@@ -28,11 +28,14 @@ In scope:
    wall with a frame, leaf or glass).
 3. Add, rename, re-height, delete and switch floors. Show the floor below as a faint "ghost"
    in 2D. Show all floors stacked in 3D, with a control to hide floors above the active one.
-4. Place and edit stairs (straight, quarter-turn, half-turn, spiral). Show the stair on both floors it
+4. Place and edit stairs (straight, quarter-turn, half-turn). Spiral stairs are dropped: the house has none. Show the stair on both floors it
    connects. Cut a hole in the upper floor's slab where the stair arrives.
 5. Floor slabs in 3D, derived from the walls, with the stair holes cut out.
 
-Out of scope (later phases): sloped ceilings and roofs (Phase 4 optional item), arched openings, furniture
+6. Sloped ceilings for the attic (second floor), because they limit the usable space at the sides. See
+   "Sloped attic ceilings". This moves the roof item forward from Phase 4.
+
+Out of scope (later phases): a full roof model with dormers, arched openings, furniture
 (Phase 3), curtains, door hardware, building-to-plot transforms (`Building.position` stays 0).
 
 ## Design
@@ -82,8 +85,10 @@ elevation).
 **Switching.** The active floor id lives in `viewStore` (already so). Switching changes which floor the 2D
 view shows and edits.
 
-**Ghost floor.** The 2D view draws the floor below at 25% opacity, as outlines only, non-interactive and not
-snappable. A toggle turns it off. The floor above is not shown.
+**Ghost floor.** The 2D view draws the floor below at 25% opacity, as outlines only and non-interactive. A
+toggle turns it off. The floor above is not shown. While the ghost is on, its wall nodes and wall lines are
+extra snap targets for the wall tool and for dragging, so upper walls can sit exactly over lower walls. Snapping
+to the ghost is separate from snapping to the active floor, and drops out when the ghost is off.
 
 **3D stack.** The 3D view draws every floor at its derived elevation. A control cycles between "all floors",
 "up to the active floor" and "active floor only".
@@ -92,7 +97,7 @@ snappable. A toggle turns it off. The floor above is not shown.
 
 **Footprint.** `stairGeometry(stair)` (pure, in `src/domain/model/stairs.ts`) derives the step polygons, the
 walking-line arrow and the overall outline from the stair record, using `position`, `rotationDeg`, `width`,
-`runLength`, `steps`, `shape` and `turn`. Quarter and half-turn stairs use winder-free landings: a square
+`runLength`, `steps` and `turn`. Quarter and half-turn stairs use winder-free landings: a square
 landing at the turn, with the remaining steps split between the two flights.
 
 **Tool.** The stair tool takes two clicks: the bottom of the run and its direction. Shape, width and step
@@ -106,6 +111,34 @@ lower floor as a full stair with an "up" arrow and on the upper floor as a dashe
 **Slab voids.** If `cutsVoid` is true, the stair footprint is cut out of the slab of `toFloor`. The void is
 derived when the slab is built. It is not stored.
 
+### Sloped attic ceilings
+
+The attic has angled ceilings, so the walls there are not a fixed height. The model needs to answer two
+questions: how high is the ceiling at a point, and where is the headroom too low to use.
+
+**Model.** A floor gets an optional list of ceiling planes. Each plane is defined by an eave line (two
+points in plan, at the height where the slope meets the knee wall), a slope angle in degrees and the side the
+plane rises towards. The ceiling height at a point is the lowest height over all planes that cover it, and the
+floor height otherwise. A gable roof is two planes that rise towards each other; a one-sided slope is one
+plane. Planes are stored (they are the design); the heights, the headroom areas and the clipped walls are
+derived.
+
+**Authoring.** A "ceiling plane" tool takes two clicks (the eave line) and a click on the side that rises.
+The inspector sets the knee-wall height at the eave and the slope angle, with typed values. A "roof from
+walls" shortcut creates the usual two planes along the longest pair of parallel outer walls, so a standard
+saddle roof takes one click.
+
+**Derived results.**
+
+- `ceilingHeightAt(floor, point)` is a pure function used by everything below.
+- Wall tops follow the planes: a wall under a slope is drawn as a polygon whose top edge is cut by the plane,
+  so a gable wall is a pentagon and a knee wall is a trapezoid.
+- 2D shows headroom bands: below 1.0 m hatched, below 1.8 m lightly shaded. The thresholds are settings, with
+  these defaults. Room areas get a second figure, "area with at least 1.8 m headroom".
+- 3D draws each plane as a ceiling surface, with the room finish colour on the underside.
+
+**Limits.** Dormers, hips and curved roofs are not modelled. A hip roof can be approximated with extra planes.
+
 ### Slabs
 
 `floorSlab(floor, stairsArrivingHere)` (pure) returns the slab polygon of each connected group of walls
@@ -115,12 +148,16 @@ gets no slab.
 
 ### Schema impact
 
-No schema change is planned. `Opening`, `Stair` and `Floor` already carry every field used above. If review
-finds a missing field, the change goes into schema v3 with a migration; `SCHEMA_VERSION` bumps only in that
-case.
+Openings, stairs and floors carry every field the first five items need. The sloped ceilings add one optional
+field on `Floor`: `ceilingPlanes`, a record of planes (eave line, slope angle, rising side, knee-wall height).
+This bumps `SCHEMA_VERSION` to 3. The v2 to v3 migration sets `ceilingPlanes` to an empty record, so existing
+files open unchanged. The `Wall.height` field stays as an explicit override.
 
 ### Interaction with existing code
 
+- Ceiling planes feed the wall pieces: the top of each wall piece is clipped by `ceilingHeightAt`, so openings
+  under a slope also get a shorter head piece. An opening taller than the local ceiling is flagged in the
+  inspector.
 - `normalizeFloor` and `fitOpenings` keep openings valid when walls change. The door tool reuses
   `fitOpenings`.
 - Opening edits go through `editFloor` with an exact floor id (Phase 1 hardening), so an edit can never land
@@ -129,19 +166,25 @@ case.
   cache.
 - Every new string goes into `en.json` and `nl.json`.
 
-## Risks and open questions for Bas
+## Decisions and open questions
 
-1. **Wall alignment between floors.** Upper floors rarely line up exactly with the floor below. The design
-   does not force alignment. The ghost floor is the only aid. Is that enough, or should walls snap to the
-   ghost floor's walls?
-2. **Stair shapes.** The house's real stairs are not in this document. Which shapes do you need first?
-   Spiral stairs are the most work; the design lists them but they can move to a later step.
-3. **Attic.** The attic has sloped ceilings. Phase 2 keeps flat ceilings, so wall heights there are wrong
-   until the optional roof generator exists. Acceptable for now?
-4. **Delete-floor safety.** Delete is undoable and confirmed. Is that enough, or should it also refuse when
-   stairs still connect to the floor?
-5. **Door presets.** The default sizes above are common Dutch sizes. Tell me if your house uses others and
-   I will change the defaults.
+Decided with Bas (2026-10-27):
+
+- Stairs: only straight stairs with one or two angles (quarter-turn and half-turn). No spiral.
+- Deleting a floor asks for confirmation and is undoable. It is not blocked by stairs; the stairs that
+  connect to the floor are removed with it, and the confirmation says so.
+- Door and window sizes are not known yet. The tools use general defaults (door 930 x 2315 mm, window
+  1200 x 1200 mm at 900 mm sill), every value is editable per opening, and a "change default size" setting
+  stores the sizes the tools use next. Measured sizes can be entered later without changing the data.
+- The attic needs sloped ceilings in this phase.
+
+Still open:
+
+1. **Attic roof shape.** The "roof from walls" shortcut assumes a saddle roof (two planes). Does the attic
+   have a saddle roof, or is it different (one slope, a hip, a mansard with two slopes per side)? The
+   ceiling plane model handles all of them, but the shortcut and the tests should match the real shape first.
+2. **Attic measurements.** The slope angle and the knee-wall height can be read from the section drawing or
+   measured. They are inputs in the inspector, so this can wait until you trace the attic.
 
 ## Acceptance criteria
 
@@ -155,7 +198,9 @@ case.
 - The floor below shows as a ghost in 2D and can be switched off.
 - A stair between two floors shows on both floors; the upper slab has a hole where it arrives; the 3D view
   shows the stair and the hole.
-- A project with three floors, openings and stairs survives export, import and reload with no data change.
+- On the attic, ceiling planes can be placed with typed angle and knee-wall height. Walls follow the slope in
+  2D and 3D, areas show headroom bands, and a door under a low slope is flagged.
+- A project with three floors, openings, stairs and ceiling planes survives export, import and reload with no data change.
 - Typecheck, lint, format, unit tests and Playwright tests pass; the initial JS stays under 250 KB gzip.
 
 ## Detailed Implementation Plan
@@ -184,14 +229,20 @@ wallId, offset)` that returns the clamped opening or `null`. Tests: free, overla
    reference the floor. Tests for each, including undo.
 8. **Floor switching and ghost floor.** Floor switcher in the top bar, ghost layer in the plan view with a
    toggle, and the 3D stack modes. e2e: add a floor, draw on it, see the ghost.
-9. **Stairs (domain).** Add `stairs.ts` with `stairGeometry` and `defaultStepCount`. Tests for each shape:
+9. **Stairs (domain).** Add `stairs.ts` with `stairGeometry` and `defaultStepCount`. Tests for each shape (straight, quarter-turn, half-turn):
    step count, outline bounds, walking line, riser and tread values.
 10. **Stair tool and inspector.** Two-click tool, inspector fields and riser/tread warnings, 2D symbol on
     both floors.
 11. **Slabs and voids.** Add `floorSlab` and render slabs in 3D with stair holes. Tests: a square with and
     without a void, a stair outside the slab, two wall groups.
-12. **Round trip and polish.** Export/import test with three floors, openings and stairs. Update
+12. **Sloped ceilings (domain).** Add `ceilingPlanes` to the schema, bump to v3 with a migration and test,
+    add `src/domain/model/ceilings.ts` with `ceilingHeightAt`, wall-top clipping and headroom areas. Tests: saddle
+    roof, one-sided slope, a point outside every plane, knee wall, headroom polygon areas.
+13. **Sloped ceilings (UI and 3D).** Ceiling plane tool, "roof from walls" shortcut, inspector, 2D headroom
+    bands, clipped walls in 2D and 3D, ceiling surfaces, and the second area figure. e2e: build a saddle
+    roof on the attic and check the headroom band appears.
+14. **Round trip and polish.** Export/import test with three floors, openings and stairs. Update
     `docs/roadmap.md`, `docs/architecture.md`, and write ADRs for the wall-pieces approach and the slab
     derivation. Check the bundle budget.
-13. **Acceptance run.** Add `tests/e2e/openings-floors.spec.ts` covering each acceptance line, run the full
+15. **Acceptance run.** Add `tests/e2e/openings-floors.spec.ts` covering each acceptance line, run the full
     suite, then summarise and wait for Bas's approval before Phase 3.
