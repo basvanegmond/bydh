@@ -1,0 +1,8 @@
+dist
+coverage
+playwright-report
+test-results
+_archive
+package-lock.json
+docs/plans
+src/components/ui
