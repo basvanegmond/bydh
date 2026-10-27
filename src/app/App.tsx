@@ -27,7 +27,8 @@ export function App() {
           >
             {show2d && (
               <section className="min-h-0 min-w-0" data-testid="pane-2d">
-                <PlanView />
+                {/* Re-keyed per layout so switching 2D/split re-fits the house in the new pane size. */}
+                <PlanView key={viewMode} />
               </section>
             )}
             {show3d && (

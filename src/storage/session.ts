@@ -8,7 +8,8 @@ import type { ProjectRepository, ProjectSummary } from './repository';
 
 const AUTOSAVE_DELAY_MS = 800;
 
-export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+/** 'pending' = changed but not yet written; never claim 'saved' while changes are waiting. */
+export type SaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 
 interface PersistenceState {
   status: SaveStatus;
@@ -45,7 +46,12 @@ async function save(project: Project): Promise<void> {
   usePersistence.setState({ status: 'saving' });
   try {
     await repository.saveProject(project);
-    usePersistence.setState({ status: 'saved', lastSavedAt: new Date().toISOString(), error: null });
+    // A newer change may have arrived while this one was being written.
+    usePersistence.setState({
+      status: pending ? 'pending' : 'saved',
+      lastSavedAt: new Date().toISOString(),
+      error: null,
+    });
     await refreshProjectList();
   } catch (error) {
     usePersistence.setState({
@@ -68,6 +74,7 @@ export async function flushAutosave(): Promise<void> {
 
 function scheduleSave(project: Project): void {
   pending = project;
+  usePersistence.setState({ status: 'pending' });
   clearTimeout(timer);
   timer = setTimeout(() => void flushAutosave(), AUTOSAVE_DELAY_MS);
 }
@@ -91,6 +98,11 @@ export async function startPersistence(defaultName: string): Promise<void> {
   useProjectStore.subscribe((state, previous) => {
     if (state.project !== previous.project) scheduleSave(state.project);
   });
+  // Best effort when the tab is hidden or closed within the autosave delay.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') void flushAutosave();
+  });
+  window.addEventListener('pagehide', () => void flushAutosave());
 }
 
 export async function openProject(id: Id): Promise<void> {

@@ -185,6 +185,8 @@ export default function Scene3D() {
         intensity={1.5}
         castShadow
         shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0005}
+        shadow-normalBias={0.03}
         shadow-camera-left={-20}
         shadow-camera-right={20}
         shadow-camera-top={20}

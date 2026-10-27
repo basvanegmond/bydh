@@ -4,7 +4,16 @@ A browser-based planner for designing a home and garden together: draw the floor
 
 **Live app:** https://basvanegmond.github.io/bydh/
 
-> Status: Phase 0 (foundations). The editor shell, 2D plan canvas and 3D view are in place; drawing walls arrives in Phase 1. See [docs/roadmap.md](docs/roadmap.md).
+> Status: Phase 1 (walls and rooms). You can trace your floor plan, draw walls, name rooms, see it in 3D, and save or share it as a file. Doors, windows and more floors come in Phase 2. See [docs/roadmap.md](docs/roadmap.md).
+
+## How to use it
+
+1. **Trace your existing plan.** Click the image button in the left toolbar and pick a floor plan image or PDF. Then click two points on it whose real distance you know (e.g. the ends of a 5.62 m dimension line) and type that distance: the image is now to scale.
+2. **Draw walls.** Press **W** (or the pen button), pick a thickness at the bottom, and click where a wall starts. Aim in a direction and **type the length in cm**, then press **Enter**; or just click the next corner. **Shift** locks to 45°, **Esc** stops. Walls snap to corners, other walls, 15° angles and the grid.
+3. **Rooms appear by themselves** as soon as walls enclose a space, with their floor area. Click a room to name it and choose a floor.
+4. **Edit.** With the arrow tool (**V**) click a wall to change its length, thickness, colours or lock it; drag a wall or its corner points to move them. **Delete** removes the selected wall. **Ctrl+Z / Ctrl+Shift+Z** undo and redo.
+5. **3D.** Switch to 3D or the split view at the top right. Drag to orbit, scroll to zoom.
+6. **Save and share.** Your work is saved in this browser automatically. Use the project menu (top left) to **download it as a JSON file** (or save it to a shared folder in Chrome/Edge). The other person imports that file either as a new project or as extra variants next to their own, so nothing gets overwritten.
 
 ## Privacy: read this first
 

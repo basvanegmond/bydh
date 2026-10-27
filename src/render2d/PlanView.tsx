@@ -57,6 +57,16 @@ function fitView(size: { width: number; height: number }, floor: Floor | undefin
 
 type UpdateView = (change: (view: Viewport) => Viewport) => void;
 
+interface Camera {
+  center: Vec2;
+  scale: number;
+}
+
+const cameraOf = (view: Viewport, size: { width: number; height: number }): Camera => ({
+  center: screenToPlan(view, { x: size.width / 2, y: size.height / 2 }),
+  scale: view.scale,
+});
+
 /** Pan (middle mouse, space+drag, pan tool, one finger) and pinch zoom. */
 function usePanZoom(updateView: UpdateView) {
   const pointers = useRef(new Map<number, Vec2>());
@@ -134,19 +144,22 @@ export function PlanView() {
   const showDimensions = useViewStore((s) => s.showDimensions);
 
   // null = fitted to the content; frozen as soon as the user interacts, so drawing never moves the view.
-  const [userView, setUserView] = useState<Viewport | null>(null);
+  // Stored as "plan point at the pane centre + zoom", so resizing the pane (e.g. split view) keeps
+  // the plan centred instead of sliding it off-screen.
+  const [camera, setCamera] = useState<Camera | null>(null);
   const [cursor, setCursor] = useState<Vec2 | null>(null);
-  const fittedRef = useRef<Viewport | null>(null);
   const fitted = size.width > 0 ? fitView(size, floor) : null;
+  const view = size.width > 0 && camera ? centeredViewport(size, camera.center, camera.scale) : fitted;
+  const liveRef = useRef({ size, fitted });
   useEffect(() => {
-    fittedRef.current = fitted;
+    liveRef.current = { size, fitted };
   });
-  const view = userView ?? fitted;
 
   const updateView = useCallback<UpdateView>((change) => {
-    setUserView((v) => {
-      const base = v ?? fittedRef.current;
-      return base ? change(base) : v;
+    setCamera((c) => {
+      const { size: s, fitted: f } = liveRef.current;
+      const base = c ? centeredViewport(s, c.center, c.scale) : f;
+      return base ? cameraOf(change(base), s) : c;
     });
   }, []);
   const panZoom = usePanZoom(updateView);
@@ -187,7 +200,7 @@ export function PlanView() {
         e.preventDefault();
         return;
       }
-      if (e.key === '0') setUserView(null);
+      if (e.key === '0') setCamera(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -200,7 +213,7 @@ export function PlanView() {
   };
 
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
-    if (!userView && view) setUserView(view);
+    if (!camera && view) setCamera(cameraOf(view, size));
     if (panZoom.onPointerDown(e)) return;
     const p = toPlan(e);
     if (p) tool.onPointerDown(e, p);

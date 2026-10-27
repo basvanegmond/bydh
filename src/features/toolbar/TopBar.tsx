@@ -153,7 +153,7 @@ function SaveStatus() {
   const { status, error, durable } = usePersistence();
   const text = !durable
     ? t('save.notDurable')
-    : status === 'saving'
+    : status === 'saving' || status === 'pending'
       ? t('save.saving')
       : status === 'error'
         ? t('save.error', { error })
