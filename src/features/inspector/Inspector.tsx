@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -13,36 +12,13 @@ import { formatArea, formatLength } from '@/domain/units/format';
 import { currentLocale } from '@/i18n';
 import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
-import { CommitInput, Field } from './fields';
+import { ColorField, CommitInput, Field, selectClass } from './fields';
+import { OpeningInspector } from './OpeningInspector';
 import { cmToMm, mmToCm } from './units';
 
 const JUSTIFICATIONS = ['center', 'left', 'right'] as const;
 const isJustification = (value: string): value is Wall['justification'] =>
   (JUSTIFICATIONS as readonly string[]).includes(value);
-
-/** Colour picker whose whole drag is one undo step and does not re-run room detection. */
-function ColorField({ id, value, onLive }: { id: string; value: string; onLive: (color: string) => void }) {
-  const finish = () => useProjectStore.getState().commitTransaction();
-  // Never leave the transaction open if the field disappears mid-pick (selection change).
-  useEffect(() => finish, []);
-  return (
-    <input
-      id={id}
-      type="color"
-      value={value}
-      className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent"
-      onChange={(e) => {
-        const store = useProjectStore.getState();
-        if (!store.transaction) store.beginTransaction('Paint wall');
-        onLive(e.target.value);
-      }}
-      onBlur={finish}
-    />
-  );
-}
-
-const selectClass =
-  'h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50';
 
 function LockToggle({
   id,
@@ -339,6 +315,7 @@ export function Inspector() {
   const wall = selection?.kind === 'wall' ? floor?.walls[selection.id] : undefined;
   const room = selection?.kind === 'room' ? floor?.rooms[selection.id] : undefined;
   const underlay = selection?.kind === 'underlay' ? floor?.underlays[selection.id] : undefined;
+  const opening = selection?.kind === 'opening' ? floor?.openings[selection.id] : undefined;
 
   return (
     <aside
@@ -349,7 +326,8 @@ export function Inspector() {
       {floor && wall && <WallInspector key={wall.id} floor={floor} wall={wall} />}
       {floor && room && <RoomInspector key={room.id} floor={floor} room={room} />}
       {floor && underlay && <UnderlayInspector key={underlay.id} floor={floor} underlay={underlay} />}
-      {!wall && !room && !underlay && (
+      {floor && opening && <OpeningInspector key={opening.id} floor={floor} opening={opening} />}
+      {!wall && !room && !underlay && !opening && (
         <>
           <div>
             <p className="text-sm">{t('inspector.nothingSelected')}</p>

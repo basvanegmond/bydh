@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useProjectStore } from '@/store/projectStore';
 
 export function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: ReactNode }) {
   return (
@@ -65,3 +66,37 @@ export function CommitInput({
     />
   );
 }
+
+/** Colour picker whose whole drag is one undo step and does not re-run room detection. */
+export function ColorField({
+  id,
+  value,
+  onLive,
+  label = 'Paint wall',
+}: {
+  id: string;
+  value: string;
+  onLive: (color: string) => void;
+  label?: string;
+}) {
+  const finish = () => useProjectStore.getState().commitTransaction();
+  // Never leave the transaction open if the field disappears mid-pick (selection change).
+  useEffect(() => finish, []);
+  return (
+    <input
+      id={id}
+      type="color"
+      value={value}
+      className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent"
+      onChange={(e) => {
+        const store = useProjectStore.getState();
+        if (!store.transaction) store.beginTransaction(label);
+        onLive(e.target.value);
+      }}
+      onBlur={finish}
+    />
+  );
+}
+
+export const selectClass =
+  'h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50';

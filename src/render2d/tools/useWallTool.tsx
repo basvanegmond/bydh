@@ -27,7 +27,7 @@ export function useWallTool(ctx: ToolContext): ToolHandlers {
 
   const snap = (raw: Vec2, shift: boolean): SnapResult =>
     snapPoint(raw, {
-      ...snapTargets(ctx.floor),
+      ...snapTargets(ctx.floor, [], ctx.ghostFloor),
       gridMm: ctx.gridMm,
       toleranceMm: ctx.toleranceMm,
       ...(chain ? { from: chain.last } : {}),

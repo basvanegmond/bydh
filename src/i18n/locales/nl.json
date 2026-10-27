@@ -51,6 +51,24 @@
       "roof": "Dak"
     }
   },
+  "floors": {
+    "manage": "Verdiepingen beheren…",
+    "title": "Verdiepingen",
+    "description": "Verdiepingen van boven naar beneden. Een andere hoogte verplaatst de verdiepingen erboven.",
+    "addAbove": "Verdieping erboven toevoegen",
+    "addBelow": "Verdieping eronder toevoegen",
+    "copyWalls": "Muren van de verdieping eronder kopiëren",
+    "name": "Naam",
+    "height": "Hoogte",
+    "show": "Tonen",
+    "active": "Getoond",
+    "delete": "Verdieping verwijderen",
+    "lastFloor": "De laatste verdieping kan niet worden verwijderd",
+    "deleteTitle": "Verdieping verwijderen",
+    "deleteConfirm": "\"{{name}}\" verwijderen? Hiermee verdwijnen ook {{walls}} muur/muren, {{rooms}} ruimte(s), {{openings}} opening(en), {{objects}} object(en) en {{stairs}} trap(pen).",
+    "ghost": "Spookverdieping",
+    "ghostHint": "Toon de verdieping eronder vaag en snap op de muren ervan"
+  },
   "project": {
     "label": "Project",
     "menu": "Projectmenu",
@@ -154,6 +172,59 @@
     "label": "3D-weergave",
     "loading": "3D-weergave laden…",
     "error": "De 3D-weergave kon niet starten. Mogelijk staat WebGL uit in je browser."
+  },
+  "view3d": {
+    "stackLabel": "Verdiepingen in 3D",
+    "stack": {
+      "all": "Alle verdiepingen",
+      "upTo": "Tot actieve verdieping",
+      "active": "Alleen actieve verdieping"
+    }
+  },
+  "openings": {
+    "tool": {
+      "door": "Deur plaatsen (D)",
+      "window": "Raam plaatsen (N)"
+    },
+    "hint": {
+      "door": "Ga langs een muur en klik om een deur te plaatsen. Rood betekent dat het niet past. Esc stopt.",
+      "window": "Ga langs een muur en klik om een raam te plaatsen. Rood betekent dat het niet past. Esc stopt."
+    },
+    "defaults": {
+      "door": "Nieuwe deur",
+      "window": "Nieuw raam",
+      "width": "Breedte (cm)",
+      "height": "Hoogte (cm)",
+      "sill": "Dorpel (cm)"
+    },
+    "inspector": {
+      "door": "Deur",
+      "window": "Raam",
+      "width": "Breedte (cm)",
+      "height": "Hoogte (cm)",
+      "sill": "Borstweringhoogte (cm)",
+      "operation": "Type",
+      "hinge": "Scharnier: {{side}}",
+      "opensTo": "Draait naar: {{side}}",
+      "frameColor": "Kozijnkleur",
+      "wallLocked": "De muur is vergrendeld, dus deze opening kan niet gewijzigd worden.",
+      "doesNotFit": "Die breedte past niet op de muur."
+    },
+    "side": {
+      "left": "links",
+      "right": "rechts"
+    },
+    "operation": {
+      "swing": "Draaideur",
+      "double-swing": "Dubbele draaideur",
+      "sliding": "Schuifdeur",
+      "pocket": "Inschuifdeur",
+      "doorway": "Doorgang",
+      "fixed": "Vast",
+      "tilt-turn": "Draai-kiep",
+      "casement": "Draairaam",
+      "top-hung": "Valraam"
+    }
   },
   "language": {
     "label": "Taal",

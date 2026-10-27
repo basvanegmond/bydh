@@ -51,6 +51,24 @@
       "roof": "Roof"
     }
   },
+  "floors": {
+    "manage": "Manage floors…",
+    "title": "Floors",
+    "description": "Floors from top to bottom. Changing a height moves the floors above it.",
+    "addAbove": "Add floor above",
+    "addBelow": "Add floor below",
+    "copyWalls": "Copy walls from the floor below",
+    "name": "Name",
+    "height": "Height",
+    "show": "Show",
+    "active": "Shown",
+    "delete": "Delete floor",
+    "lastFloor": "The last floor cannot be deleted",
+    "deleteTitle": "Delete floor",
+    "deleteConfirm": "Delete \"{{name}}\"? This also removes {{walls}} wall(s), {{rooms}} room(s), {{openings}} opening(s), {{objects}} object(s) and {{stairs}} stair(s).",
+    "ghost": "Ghost floor",
+    "ghostHint": "Show the floor below faintly and snap to its walls"
+  },
   "project": {
     "label": "Project",
     "menu": "Project menu",
@@ -154,6 +172,55 @@
     "label": "3D view",
     "loading": "Loading 3D view…",
     "error": "The 3D view could not start. Your browser may have WebGL disabled."
+  },
+  "view3d": {
+    "stackLabel": "Floors shown in 3D",
+    "stack": { "all": "All floors", "upTo": "Up to active floor", "active": "Active floor only" }
+  },
+  "openings": {
+    "tool": {
+      "door": "Place door (D)",
+      "window": "Place window (N)"
+    },
+    "hint": {
+      "door": "Move along a wall and click to place a door. Red means it does not fit. Esc stops.",
+      "window": "Move along a wall and click to place a window. Red means it does not fit. Esc stops."
+    },
+    "defaults": {
+      "door": "New door",
+      "window": "New window",
+      "width": "Width (cm)",
+      "height": "Height (cm)",
+      "sill": "Sill (cm)"
+    },
+    "inspector": {
+      "door": "Door",
+      "window": "Window",
+      "width": "Width (cm)",
+      "height": "Height (cm)",
+      "sill": "Sill height (cm)",
+      "operation": "Type",
+      "hinge": "Hinge: {{side}}",
+      "opensTo": "Opens to: {{side}}",
+      "frameColor": "Frame colour",
+      "wallLocked": "The wall is locked, so this opening cannot be changed.",
+      "doesNotFit": "That width does not fit on the wall."
+    },
+    "side": {
+      "left": "left",
+      "right": "right"
+    },
+    "operation": {
+      "swing": "Swing door",
+      "double-swing": "Double swing door",
+      "sliding": "Sliding",
+      "pocket": "Pocket door",
+      "doorway": "Doorway",
+      "fixed": "Fixed",
+      "tilt-turn": "Tilt and turn",
+      "casement": "Casement",
+      "top-hung": "Top hung"
+    }
   },
   "language": {
     "label": "Language",

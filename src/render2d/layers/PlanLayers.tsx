@@ -7,6 +7,7 @@ import { useProjectStore } from '@/store/projectStore';
 import type { Selection } from '@/store/viewStore';
 import { pointsAttr, ringsPath } from '../planData';
 import { useAssetUrl } from '../useAssetUrl';
+import { wallPlanPolygons } from '../wallPiecePolygons';
 
 /*
  * These layers draw in plan millimetres inside a group whose transform maps plan → screen
@@ -108,23 +109,32 @@ export const WallLayer = memo(function WallLayer({
   floor: Floor;
   selection: Selection;
 }) {
+  const hosts = new Set(Object.values(floor.openings).map((o) => o.wallId));
   return (
     <g data-layer="walls">
       {Object.values(outlines).map((outline) => {
         const selected = isSelected(selection, 'wall', outline.wallId);
-        const locked = floor.walls[outline.wallId]?.locked;
+        const wall = floor.walls[outline.wallId];
+        const common = {
+          fill: selected ? 'var(--plan-selection)' : 'var(--plan-wall)',
+          stroke: 'var(--plan-wall-edge)',
+          strokeWidth: 1,
+          vectorEffect: 'non-scaling-stroke' as const,
+        };
+        const attrs = {
+          'data-entity': `wall:${outline.wallId}`,
+          'data-testid': 'wall',
+          'data-locked': wall?.locked ? 'true' : undefined,
+        };
+        if (!wall || !hosts.has(wall.id))
+          return <polygon key={outline.wallId} points={pointsAttr(outline.polygon)} {...common} {...attrs} />;
+        // Walls with openings are drawn as their solid pieces so the openings show as gaps.
         return (
-          <polygon
-            key={outline.wallId}
-            points={pointsAttr(outline.polygon)}
-            fill={selected ? 'var(--plan-selection)' : 'var(--plan-wall)'}
-            stroke="var(--plan-wall-edge)"
-            strokeWidth={1}
-            vectorEffect="non-scaling-stroke"
-            data-entity={`wall:${outline.wallId}`}
-            data-testid="wall"
-            data-locked={locked ? 'true' : undefined}
-          />
+          <g key={outline.wallId} {...attrs}>
+            {wallPlanPolygons(floor, wall, outline).map((quad, i) => (
+              <polygon key={i} points={pointsAttr(quad)} {...common} />
+            ))}
+          </g>
         );
       })}
     </g>

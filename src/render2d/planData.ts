@@ -5,11 +5,14 @@ import { resolveFloor } from '@/domain/model/project';
 import type { RoomGeometry } from '@/domain/model/rooms';
 import type { Segment } from '@/domain/geometry/segment';
 import type { Floor, Id, Vec2 } from '@/domain/schema';
+import { floorBelow } from '@/features/floors/ghost';
 import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
 
 export interface PlanData {
   floor: Floor | undefined;
+  /** The floor below, when the ghost is on: drawn faintly and used as extra snap targets. */
+  ghostFloor: Floor | undefined;
   outlines: Record<Id, WallOutline>;
   rooms: Record<Id, RoomGeometry>;
 }
@@ -18,17 +21,14 @@ export interface PlanData {
 export function usePlanData(): PlanData {
   const project = useProjectStore((s) => s.project);
   const activeFloorId = useViewStore((s) => s.activeFloorId);
+  const showGhost = useViewStore((s) => s.ghostFloor);
   const floor = resolveFloor(project, activeFloorId);
+  const ghostFloor = showGhost && floor ? floorBelow(project, floor.id) : undefined;
   const geometry = useMemo(() => (floor ? floorGeometry(floor) : undefined), [floor]);
-  return { floor, outlines: geometry?.outlines ?? {}, rooms: geometry?.rooms ?? {} };
+  return { floor, ghostFloor, outlines: geometry?.outlines ?? {}, rooms: geometry?.rooms ?? {} };
 }
 
-/** Snap targets from a floor, leaving out the given nodes and every wall touching them. */
-export function snapTargets(
-  floor: Floor | undefined,
-  excludeNodes: Id[] = [],
-): { nodes: Vec2[]; segments: Segment[] } {
-  if (!floor) return { nodes: [], segments: [] };
+function floorTargets(floor: Floor, excludeNodes: Id[]): { nodes: Vec2[]; segments: Segment[] } {
   const excluded = new Set(excludeNodes);
   const nodes = Object.values(floor.wallNodes)
     .filter((n) => !excluded.has(n.id))
@@ -41,6 +41,22 @@ export function snapTargets(
       return a && b ? [{ a: a.position, b: b.position }] : [];
     });
   return { nodes, segments };
+}
+
+/**
+ * Snap targets from a floor, leaving out the given nodes and every wall touching them. The optional
+ * ghost floor (the floor below, when the ghost is on) adds its nodes and wall lines unfiltered, so upper
+ * walls can sit exactly over lower ones. Without a ghost floor nothing of it is offered.
+ */
+export function snapTargets(
+  floor: Floor | undefined,
+  excludeNodes: Id[] = [],
+  ghostFloor?: Floor,
+): { nodes: Vec2[]; segments: Segment[] } {
+  const own = floor ? floorTargets(floor, excludeNodes) : { nodes: [], segments: [] };
+  if (!ghostFloor) return own;
+  const ghost = floorTargets(ghostFloor, []);
+  return { nodes: [...own.nodes, ...ghost.nodes], segments: [...own.segments, ...ghost.segments] };
 }
 
 export const pointsAttr = (points: Vec2[]): string => points.map((p) => `${p.x},${p.y}`).join(' ');

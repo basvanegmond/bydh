@@ -10,12 +10,15 @@ import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
 import { Grid } from './Grid';
 import { RoomLabels, WallDimensions } from './layers/Annotations';
+import { GhostFloorLayer } from './layers/GhostFloorLayer';
+import { OpeningLayer } from './layers/OpeningSymbol';
 import { RoomLayer, UnderlayLayer, WallLayer } from './layers/PlanLayers';
 import { usePlanData } from './planData';
 import { ScaleBar } from './ScaleBar';
 import { ToolOptions } from './ToolOptions';
 import { useCalibrateTool } from './tools/useCalibrateTool';
 import { useSelectTool } from './tools/useSelectTool';
+import { useOpeningTool } from './tools/useOpeningTool';
 import { useWallTool } from './tools/useWallTool';
 import type { ToolContext, ToolHandlers } from './tools/types';
 import { centeredViewport, MAX_SCALE, MIN_SCALE, panBy, screenToPlan, zoomAt } from './viewport';
@@ -137,7 +140,7 @@ export function PlanView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const size = useElementSize(containerRef);
-  const { floor, outlines, rooms } = usePlanData();
+  const { floor, ghostFloor, outlines, rooms } = usePlanData();
   const gridMm = useProjectStore((s) => s.project.settings.gridMm);
   const toolName = useViewStore((s) => s.tool);
   const selection = useViewStore((s) => s.selection);
@@ -168,13 +171,23 @@ export function PlanView() {
     view: view ?? { scale: INITIAL_SCALE, offsetX: 0, offsetY: 0 },
     floor,
     floorId: floor?.id ?? null,
+    ghostFloor,
     toleranceMm: SNAP_RADIUS_PX / (view?.scale ?? INITIAL_SCALE),
     gridMm,
   };
   const selectTool = useSelectTool(ctx);
   const wallTool = useWallTool(ctx);
+  const doorTool = useOpeningTool(ctx, 'door');
+  const windowTool = useOpeningTool(ctx, 'window');
   const calibrateTool = useCalibrateTool(ctx);
-  const tool = { select: selectTool, wall: wallTool, calibrate: calibrateTool, pan: IDLE_TOOL }[toolName];
+  const tool = {
+    select: selectTool,
+    wall: wallTool,
+    calibrate: calibrateTool,
+    door: doorTool,
+    window: windowTool,
+    pan: IDLE_TOOL,
+  }[toolName];
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -256,9 +269,11 @@ export function PlanView() {
         {view && floor && (
           <>
             <g transform={`matrix(${view.scale} 0 0 ${-view.scale} ${view.offsetX} ${view.offsetY})`}>
+              {ghostFloor && <GhostFloorLayer floor={ghostFloor} />}
               <UnderlayLayer floor={floor} selection={selection} />
               <RoomLayer rooms={rooms} floor={floor} selection={selection} />
               <WallLayer outlines={outlines} floor={floor} selection={selection} />
+              <OpeningLayer floor={floor} selectedId={selection?.kind === 'opening' ? selection.id : null} />
             </g>
             <RoomLabels rooms={rooms} floor={floor} view={view} />
             <WallDimensions floor={floor} view={view} selection={selection} showAll={showDimensions} />

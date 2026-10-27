@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Crosshair, Hand, ImagePlus, MousePointer2, PenLine, Ruler } from 'lucide-react';
+import { Crosshair, DoorOpen, Hand, ImagePlus, MousePointer2, PenLine, Ruler, Square } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -44,7 +44,14 @@ function ToolButton({ icon: Icon, label, active, disabled, onClick, testId }: To
   );
 }
 
-const SHORTCUTS: Record<string, Tool> = { v: 'select', h: 'pan', w: 'wall', c: 'calibrate' };
+const SHORTCUTS: Record<string, Tool> = {
+  v: 'select',
+  h: 'pan',
+  w: 'wall',
+  c: 'calibrate',
+  d: 'door',
+  n: 'window',
+};
 
 const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
@@ -118,6 +125,20 @@ export function ToolRail() {
         active={tool === 'wall'}
         onClick={() => setTool('wall')}
         testId="tool-wall"
+      />
+      <ToolButton
+        icon={DoorOpen}
+        label={t('openings.tool.door')}
+        active={tool === 'door'}
+        onClick={() => setTool('door')}
+        testId="tool-door"
+      />
+      <ToolButton
+        icon={Square}
+        label={t('openings.tool.window')}
+        active={tool === 'window'}
+        onClick={() => setTool('window')}
+        testId="tool-window"
       />
       <Separator className="my-1 w-8" />
       <ToolButton
