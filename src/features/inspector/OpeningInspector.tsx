@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
+import { ceilingHeightAt } from '@/domain/model/ceilings';
 import { placeOpening } from '@/domain/model/openings';
 import { findFloor } from '@/domain/model/project';
+import { wallEnds } from '@/domain/model/walls';
 import type { Floor, Opening } from '@/domain/schema';
 import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
@@ -20,6 +22,17 @@ const isWindowOperation = (v: string): v is WindowOperation =>
 const DEFAULT_FRAME_COLOR = '#f2f0ea';
 const flip = (side: 'left' | 'right'): 'left' | 'right' => (side === 'left' ? 'right' : 'left');
 
+/** Ceiling height (mm) above the opening centre, or null when the host wall cannot be resolved. */
+function ceilingAboveOpening(floor: Floor, opening: Opening): number | null {
+  const wall = floor.walls[opening.wallId];
+  if (!wall || !floor.wallNodes[wall.startNodeId] || !floor.wallNodes[wall.endNodeId]) return null;
+  const { a, b } = wallEnds(floor, wall);
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  if (len === 0) return null;
+  const t = opening.offset / len;
+  return ceilingHeightAt(floor, { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+}
+
 interface OpeningInspectorProps {
   floor: Floor;
   opening: Opening;
@@ -33,6 +46,8 @@ export function OpeningInspector({ floor, opening }: OpeningInspectorProps) {
   const [error, setError] = useState<string | null>(null);
   const locked = floor.walls[opening.wallId]?.locked === true;
   const { spec } = opening;
+  const ceiling = ceilingAboveOpening(floor, opening);
+  const tooTall = ceiling !== null && opening.sillHeight + opening.height > ceiling;
   const update = (label: string, change: (o: Opening) => void) =>
     editFloor(label, floor.id, (f) => {
       const o = f.openings[opening.id];
@@ -52,6 +67,11 @@ export function OpeningInspector({ floor, opening }: OpeningInspectorProps) {
   return (
     <div className="grid gap-3" data-testid="opening-inspector">
       <h3 className="text-sm font-semibold">{t(`openings.inspector.${spec.type}`)}</h3>
+      {tooTall && (
+        <p className="text-xs text-destructive" role="alert" data-testid="opening-ceiling-warning">
+          {t('ceilings.openingTooTall', { ceiling: mmToCm(ceiling) })}
+        </p>
+      )}
       {locked && <p className="text-xs text-muted-foreground">{t('openings.inspector.wallLocked')}</p>}
       <Field label={t('openings.inspector.operation')} htmlFor="opening-operation">
         <select

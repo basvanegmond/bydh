@@ -175,7 +175,11 @@
   },
   "view3d": {
     "stackLabel": "Floors shown in 3D",
-    "stack": { "all": "All floors", "upTo": "Up to active floor", "active": "Active floor only" }
+    "stack": {
+      "all": "All floors",
+      "upTo": "Up to active floor",
+      "active": "Active floor only"
+    }
   },
   "openings": {
     "tool": {
@@ -222,6 +226,33 @@
       "top-hung": "Top hung"
     }
   },
+  "ceilings": {
+    "tool": "Ceiling plane (R)",
+    "kneeHeight": "Knee wall height (cm)",
+    "slope": "Slope (degrees)",
+    "roofFromWalls": "Roof from walls",
+    "roofFromWallsEmpty": "No closed outer walls with a facing pair were found, so no roof was added.",
+    "usableArea": "Area with at least 1.8 m headroom",
+    "openingTooTall": "This opening is taller than the ceiling at its position ({{ceiling}} cm).",
+    "hint": {
+      "first": "Click the first point of the eave line. Esc stops.",
+      "second": "Click the second point of the eave line.",
+      "side": "Click on the side where the ceiling rises. Esc cancels."
+    },
+    "defaults": {
+      "title": "New ceiling plane"
+    },
+    "headroom": {
+      "toggle": "Show headroom"
+    },
+    "inspector": {
+      "title": "Ceiling plane",
+      "rises": "Rises to the {{side}}",
+      "eaveHeight": "Ceiling height at eave",
+      "reach": "Distance to flat ceiling",
+      "noReach": "Not reached"
+    }
+  },
   "language": {
     "label": "Language",
     "en": "English",
@@ -241,5 +272,38 @@
     "keepMine": "Keep mine (overwrite)",
     "saveCopy": "Save mine as a copy",
     "copyName": "{{name}} (copy from this tab)"
+  },
+  "stairs": {
+    "tool": "Place stair (S)",
+    "hint": {
+      "start": "Click where the bottom step goes. Esc stops.",
+      "direction": "Click to set the direction of the stair. Shift snaps to 15°. Esc cancels.",
+      "noFloorAbove": "Add a floor above first: a stair needs a floor to lead to."
+    },
+    "shape": {
+      "straight": "Straight",
+      "quarter-turn": "Quarter turn",
+      "half-turn": "Half turn"
+    },
+    "turn": {
+      "left": "Turns left",
+      "right": "Turns right"
+    },
+    "inspector": {
+      "title": "Stair",
+      "shape": "Shape",
+      "turn": "Turn",
+      "width": "Width (cm)",
+      "runLength": "Run length (cm)",
+      "steps": "Number of steps",
+      "rotation": "Direction (°)",
+      "cutsVoid": "Cut a hole in the floor above",
+      "riser": "Riser height",
+      "tread": "Tread depth"
+    },
+    "warning": {
+      "riser-too-high": "Risers above 20 cm are steep. Add steps.",
+      "tread-too-short": "Treads below 22 cm are too shallow. Lengthen the run or use fewer steps."
+    }
   }
 }

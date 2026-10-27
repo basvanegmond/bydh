@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { CeilingOptions } from '@/features/ceilings/CeilingOptions';
 import { CommitInput, Field } from '@/features/inspector/fields';
 import { cmToMm, cmToMmOrZero, mmToCm } from '@/features/inspector/units';
 import { useViewStore, WALL_THICKNESSES } from '@/store/viewStore';
@@ -12,6 +13,7 @@ export function ToolOptions() {
   const thickness = useViewStore((s) => s.wallThickness);
   const setThickness = useViewStore((s) => s.setWallThickness);
   if (tool === 'door' || tool === 'window') return <OpeningOptions kind={tool} />;
+  if (tool === 'ceiling') return <CeilingOptions />;
   if (tool !== 'wall') return null;
   return (
     <div className="absolute bottom-12 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-md bg-background/95 px-2 py-1 text-xs shadow ring-1 ring-border">

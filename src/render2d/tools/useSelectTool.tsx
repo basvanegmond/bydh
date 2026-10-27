@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { add, sub } from '@/domain/geometry/vec2';
+import { translatePlane } from '@/domain/model/ceilingTools';
 import { nearestWall, placeOpening } from '@/domain/model/openings';
-import { findFloor } from '@/domain/model/project';
+import { findFloor, mainBuilding } from '@/domain/model/project';
 import { deleteWall, moveNode, moveWall, wallsAtNode } from '@/domain/model/walls';
 import type { Floor, Id, Vec2 } from '@/domain/schema';
 import { snapPoint } from '@/domain/snapping/snap';
@@ -18,7 +19,9 @@ type Drag =
   | { kind: 'node'; nodeId: Id; startScreen: Vec2; started: boolean; current: Vec2 }
   | { kind: 'wall'; wallId: Id; startScreen: Vec2; started: boolean; startPlan: Vec2; applied: Vec2 }
   | { kind: 'underlay'; id: Id; startScreen: Vec2; started: boolean; last: Vec2 }
-  | { kind: 'opening'; id: Id; startScreen: Vec2; started: boolean };
+  | { kind: 'opening'; id: Id; startScreen: Vec2; started: boolean }
+  | { kind: 'ceilingPlane'; id: Id; startScreen: Vec2; started: boolean; startPlan: Vec2; applied: Vec2 }
+  | { kind: 'stair'; id: Id; startScreen: Vec2; started: boolean; startPlan: Vec2; startPos: Vec2 };
 
 /** Pixels the pointer must travel before a press becomes a drag (so clicks never nudge walls). */
 const DRAG_THRESHOLD_PX = 4;
@@ -45,6 +48,14 @@ function dragOpening(floorId: Id | null, id: Id, p: Vec2, toleranceMm: number): 
       o.wallId = placed.wallId;
       o.offset = placed.offset;
     }
+  });
+}
+
+/** Moves a stair so it sits `offset` mm from where the drag started. */
+function moveStair(id: Id, startPos: Vec2, offset: Vec2): void {
+  useProjectStore.getState().edit('Move stair', (draft) => {
+    const stair = mainBuilding(draft)?.stairs[id];
+    if (stair) stair.position = add(startPos, offset);
   });
 }
 
@@ -83,6 +94,29 @@ export function useSelectTool(ctx: ToolContext): ToolHandlers {
       const host = floor.openings[hit.id]?.wallId;
       if (host && !openingWallLocked(floor, host))
         drag.current = { kind: 'opening', id: hit.id, startScreen, started: false };
+    } else if (hit?.kind === 'stair') {
+      select({ kind: 'stair', id: hit.id });
+      const stair = mainBuilding(useProjectStore.getState().project)?.stairs[hit.id];
+      if (stair)
+        drag.current = {
+          kind: 'stair',
+          id: hit.id,
+          startScreen,
+          started: false,
+          startPlan: p,
+          startPos: stair.position,
+        };
+    } else if (hit?.kind === 'ceilingPlane') {
+      select({ kind: 'ceilingPlane', id: hit.id });
+      if (floor.ceilingPlanes[hit.id])
+        drag.current = {
+          kind: 'ceilingPlane',
+          id: hit.id,
+          startScreen,
+          started: false,
+          startPlan: p,
+          applied: { x: 0, y: 0 },
+        };
     } else if (hit?.kind === 'room') {
       select({ kind: 'room', id: hit.id });
     } else if (hit?.kind === 'underlay') {
@@ -114,7 +148,11 @@ export function useSelectTool(ctx: ToolContext): ToolHandlers {
             ? 'Move corner'
             : d.kind === 'opening'
               ? 'Move opening'
-              : 'Move wall',
+              : d.kind === 'stair'
+                ? 'Move stair'
+                : d.kind === 'ceilingPlane'
+                  ? 'Move ceiling plane'
+                  : 'Move wall',
       );
     }
     if (d.kind === 'node') {
@@ -136,6 +174,19 @@ export function useSelectTool(ctx: ToolContext): ToolHandlers {
       editFloor('Move wall', ctx.floorId, (f) => moveWall(f, d.wallId, step));
     } else if (d.kind === 'opening') {
       dragOpening(ctx.floorId, d.id, p, ctx.toleranceMm);
+    } else if (d.kind === 'ceilingPlane') {
+      const total = sub(p, d.startPlan);
+      const snapped = { x: roundTo(total.x, ctx.gridMm), y: roundTo(total.y, ctx.gridMm) };
+      const step = sub(snapped, d.applied);
+      if (step.x === 0 && step.y === 0) return;
+      d.applied = snapped;
+      editFloor('Move ceiling plane', ctx.floorId, (f) => {
+        const plane = f.ceilingPlanes[d.id];
+        if (plane) translatePlane(plane, step);
+      });
+    } else if (d.kind === 'stair') {
+      const total = sub(p, d.startPlan);
+      moveStair(d.id, d.startPos, { x: roundTo(total.x, ctx.gridMm), y: roundTo(total.y, ctx.gridMm) });
     } else {
       const step = sub(p, d.last);
       d.last = p;
@@ -173,6 +224,22 @@ export function useSelectTool(ctx: ToolContext): ToolHandlers {
       if (host && !openingWallLocked(floor, host)) {
         editFloor('Delete opening', ctx.floorId, (f) => {
           delete f.openings[selection.id];
+        });
+        select(null);
+        return true;
+      }
+      if (selection.kind === 'ceilingPlane') {
+        editFloor('Delete ceiling plane', ctx.floorId, (f) => {
+          delete f.ceilingPlanes[selection.id];
+        });
+        select(null);
+        return true;
+      }
+      if (selection.kind === 'stair') {
+        const stairId = selection.id;
+        useProjectStore.getState().edit('Delete stair', (draft) => {
+          const building = mainBuilding(draft);
+          if (building) delete building.stairs[stairId];
         });
         select(null);
         return true;

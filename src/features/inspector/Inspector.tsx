@@ -4,7 +4,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { DEFAULT_WALL_COLOR, FLOOR_MATERIALS, findMaterial, floorFinishFor } from '@/data/materials';
-import { findFloor, resolveFloor } from '@/domain/model/project';
+import { usableArea } from '@/domain/model/ceilings';
+import { findFloor, mainBuilding, resolveFloor } from '@/domain/model/project';
 import { floorGeometry } from '@/domain/model/floorGeometry';
 import { deleteWall, setWallLength, wallLength, wallsAtNode } from '@/domain/model/walls';
 import type { Floor, Room, Underlay, Wall } from '@/domain/schema';
@@ -13,8 +14,14 @@ import { currentLocale } from '@/i18n';
 import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
 import { ColorField, CommitInput, Field, selectClass } from './fields';
+import { RoofFromWallsButton } from '../ceilings/RoofFromWallsButton';
+import { CeilingPlaneInspector } from './CeilingPlaneInspector';
 import { OpeningInspector } from './OpeningInspector';
+import { StairInspector } from './StairInspector';
 import { cmToMm, mmToCm } from './units';
+
+/** Minimum ceiling height (mm) that counts as usable floor area. */
+const USABLE_HEADROOM_MM = 1800;
 
 const JUSTIFICATIONS = ['center', 'left', 'right'] as const;
 const isJustification = (value: string): value is Wall['justification'] =>
@@ -169,7 +176,10 @@ function RoomInspector({ floor, room }: { floor: Floor; room: Room }) {
   const { t } = useTranslation();
   const editFloor = useProjectStore((s) => s.editFloor);
   const project = useProjectStore((s) => s.project);
-  const area = floorGeometry(floor).rooms[room.id]?.area ?? 0;
+  const geometry = floorGeometry(floor).rooms[room.id];
+  const area = geometry?.area ?? 0;
+  const hasPlanes = Object.keys(floor.ceilingPlanes).length > 0;
+  const usable = geometry && hasPlanes ? usableArea(geometry.polygon, floor, USABLE_HEADROOM_MM) : null;
   const update = (label: string, change: (r: Room) => void) =>
     editFloor(label, floor.id, (f) => {
       const r = f.rooms[room.id];
@@ -196,6 +206,14 @@ function RoomInspector({ floor, room }: { floor: Floor; room: Room }) {
           {formatArea(area, currentLocale())}
         </span>
       </div>
+      {usable !== null && (
+        <div className="flex justify-between gap-2 text-sm">
+          <span className="text-muted-foreground">{t('ceilings.usableArea')}</span>
+          <span className="tabular-nums" data-testid="room-usable-area-value">
+            {formatArea(usable, currentLocale())}
+          </span>
+        </div>
+      )}
       <Field label={t('inspector.room.floorMaterial')} htmlFor="room-floor">
         <div className="flex items-center gap-2">
           <span className="size-6 shrink-0 rounded border" style={{ background: material?.color }} />
@@ -316,6 +334,9 @@ export function Inspector() {
   const room = selection?.kind === 'room' ? floor?.rooms[selection.id] : undefined;
   const underlay = selection?.kind === 'underlay' ? floor?.underlays[selection.id] : undefined;
   const opening = selection?.kind === 'opening' ? floor?.openings[selection.id] : undefined;
+  const plane = selection?.kind === 'ceilingPlane' ? floor?.ceilingPlanes[selection.id] : undefined;
+  const stair = selection?.kind === 'stair' ? mainBuilding(project)?.stairs[selection.id] : undefined;
+  const stairFloor = stair ? findFloor(project, stair.fromFloorId) : undefined;
 
   return (
     <aside
@@ -327,7 +348,9 @@ export function Inspector() {
       {floor && room && <RoomInspector key={room.id} floor={floor} room={room} />}
       {floor && underlay && <UnderlayInspector key={underlay.id} floor={floor} underlay={underlay} />}
       {floor && opening && <OpeningInspector key={opening.id} floor={floor} opening={opening} />}
-      {!wall && !room && !underlay && !opening && (
+      {floor && plane && <CeilingPlaneInspector key={plane.id} floor={floor} plane={plane} />}
+      {stair && stairFloor && <StairInspector key={stair.id} stair={stair} floorHeight={stairFloor.height} />}
+      {!wall && !room && !underlay && !opening && !stair && !plane && (
         <>
           <div>
             <p className="text-sm">{t('inspector.nothingSelected')}</p>
@@ -337,6 +360,7 @@ export function Inspector() {
             <Stat label={t('inspector.walls')} value={Object.keys(floor?.walls ?? {}).length} />
             <Stat label={t('inspector.rooms')} value={Object.keys(floor?.rooms ?? {}).length} />
           </dl>
+          {floor && <RoofFromWallsButton />}
         </>
       )}
     </aside>

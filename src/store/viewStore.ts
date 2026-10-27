@@ -8,9 +8,12 @@ export const VIEW_MODES = ['2d', '3d', 'split'] as const;
 export type ViewMode = (typeof VIEW_MODES)[number];
 export const isViewMode = (value: string): value is ViewMode =>
   (VIEW_MODES as readonly string[]).includes(value);
-export type Tool = 'select' | 'pan' | 'wall' | 'calibrate' | 'door' | 'window';
+export type Tool = 'select' | 'pan' | 'wall' | 'calibrate' | 'door' | 'window' | 'ceiling' | 'stair';
 
-export type Selection = { kind: 'wall' | 'room' | 'underlay' | 'opening'; id: Id } | null;
+export type Selection = {
+  kind: 'wall' | 'room' | 'underlay' | 'opening' | 'ceilingPlane' | 'stair';
+  id: Id;
+} | null;
 
 /** Wall thickness presets (mm): metal stud, light partition, block, cavity inner leaf, cavity wall. */
 export const WALL_THICKNESSES = [70, 100, 150, 210, 300] as const;
@@ -26,6 +29,20 @@ export type OpeningDefaults = Record<'door' | 'window', OpeningSize>;
 const sizeOf = ({ width, height, sillHeight }: OpeningSize): OpeningSize => ({ width, height, sillHeight });
 const DEFAULT_OPENING_SIZES: OpeningDefaults = { door: sizeOf(DEFAULT_DOOR), window: sizeOf(DEFAULT_WINDOW) };
 
+/** Defaults for the next ceiling plane, in mm and degrees. Per viewer; each plane stays editable. */
+export interface CeilingDefaults {
+  kneeHeight: number;
+  slopeDeg: number;
+}
+export const DEFAULT_CEILING: CeilingDefaults = { kneeHeight: 1000, slopeDeg: 40 };
+
+/** Headroom band limits in mm: below `low` is unusable, below `mid` is awkward. */
+export interface HeadroomLimits {
+  low: number;
+  mid: number;
+}
+export const DEFAULT_HEADROOM: HeadroomLimits = { low: 1000, mid: 1800 };
+
 interface ViewState {
   viewMode: ViewMode;
   tool: Tool;
@@ -34,6 +51,10 @@ interface ViewState {
   wallThickness: number;
   showDimensions: boolean;
   openingDefaults: OpeningDefaults;
+  ceilingDefaults: CeilingDefaults;
+  /** Draw the headroom bands (hatched / shaded) on floors that have ceiling planes. */
+  showHeadroom: boolean;
+  headroomLimits: HeadroomLimits;
   /** Draw the floor below as a faint, snappable ghost in the 2D plan. */
   ghostFloor: boolean;
   /** Which floors the 3D view draws. */
@@ -45,6 +66,8 @@ interface ViewState {
   setWallThickness: (mm: number) => void;
   toggleDimensions: () => void;
   setOpeningDefault: (kind: 'door' | 'window', change: Partial<OpeningSize>) => void;
+  setCeilingDefault: (change: Partial<CeilingDefaults>) => void;
+  toggleHeadroom: () => void;
   toggleGhostFloor: () => void;
   setStackMode: (mode: StackMode) => void;
 }
@@ -60,6 +83,9 @@ export const useViewStore = create<ViewState>()(
       wallThickness: 100,
       showDimensions: true,
       openingDefaults: DEFAULT_OPENING_SIZES,
+      ceilingDefaults: DEFAULT_CEILING,
+      showHeadroom: true,
+      headroomLimits: DEFAULT_HEADROOM,
       ghostFloor: true,
       stackMode: 'all',
       setViewMode: (viewMode) => set({ viewMode }),
@@ -75,6 +101,9 @@ export const useViewStore = create<ViewState>()(
             [kind]: { ...state.openingDefaults[kind], ...change },
           },
         })),
+      setCeilingDefault: (change) =>
+        set((state) => ({ ceilingDefaults: { ...state.ceilingDefaults, ...change } })),
+      toggleHeadroom: () => set((state) => ({ showHeadroom: !state.showHeadroom })),
       toggleGhostFloor: () => set((state) => ({ ghostFloor: !state.ghostFloor })),
       setStackMode: (stackMode) => set({ stackMode }),
     }),
@@ -87,6 +116,9 @@ export const useViewStore = create<ViewState>()(
         wallThickness: state.wallThickness,
         showDimensions: state.showDimensions,
         openingDefaults: state.openingDefaults,
+        ceilingDefaults: state.ceilingDefaults,
+        showHeadroom: state.showHeadroom,
+        headroomLimits: state.headroomLimits,
         ghostFloor: state.ghostFloor,
         stackMode: state.stackMode,
       }),

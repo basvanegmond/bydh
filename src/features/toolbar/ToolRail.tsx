@@ -1,5 +1,17 @@
 import { useEffect, useRef } from 'react';
-import { Crosshair, DoorOpen, Hand, ImagePlus, MousePointer2, PenLine, Ruler, Square } from 'lucide-react';
+import {
+  Crosshair,
+  DoorOpen,
+  Eye,
+  Triangle,
+  Footprints,
+  Hand,
+  ImagePlus,
+  MousePointer2,
+  PenLine,
+  Ruler,
+  Square,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -51,6 +63,8 @@ const SHORTCUTS: Record<string, Tool> = {
   c: 'calibrate',
   d: 'door',
   n: 'window',
+  s: 'stair',
+  r: 'ceiling',
 };
 
 const isTyping = (target: EventTarget | null) =>
@@ -63,6 +77,8 @@ export function ToolRail() {
   const setTool = useViewStore((s) => s.setTool);
   const showDimensions = useViewStore((s) => s.showDimensions);
   const toggleDimensions = useViewStore((s) => s.toggleDimensions);
+  const showHeadroom = useViewStore((s) => s.showHeadroom);
+  const toggleHeadroom = useViewStore((s) => s.toggleHeadroom);
   const activeFloorId = useViewStore((s) => s.activeFloorId);
   const hasUnderlay = useProjectStore((s) =>
     Object.values(resolveFloor(s.project, activeFloorId)?.underlays ?? {}).some((u) => !u.locked),
@@ -140,6 +156,13 @@ export function ToolRail() {
         onClick={() => setTool('window')}
         testId="tool-window"
       />
+      <ToolButton
+        icon={Footprints}
+        label={t('stairs.tool')}
+        active={tool === 'stair'}
+        onClick={() => setTool('stair')}
+        testId="tool-stair"
+      />
       <Separator className="my-1 w-8" />
       <ToolButton
         icon={ImagePlus}
@@ -155,7 +178,21 @@ export function ToolRail() {
         onClick={() => setTool('calibrate')}
         testId="tool-calibrate"
       />
+      <ToolButton
+        icon={Triangle}
+        label={t('ceilings.tool')}
+        active={tool === 'ceiling'}
+        onClick={() => setTool('ceiling')}
+        testId="tool-ceiling"
+      />
       <Separator className="my-1 w-8" />
+      <ToolButton
+        icon={Eye}
+        label={t('ceilings.headroom.toggle')}
+        active={showHeadroom}
+        onClick={toggleHeadroom}
+        testId="toggle-headroom"
+      />
       <ToolButton
         icon={Ruler}
         label={t('view.dimensions')}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { boundingBox } from '@/domain/geometry/polygon';
+import { mainBuilding } from '@/domain/model/project';
 import { imageToPlan } from '@/domain/model/underlay';
 import type { Floor, Vec2 } from '@/domain/schema';
 import { formatLength } from '@/domain/units/format';
@@ -10,15 +11,19 @@ import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
 import { Grid } from './Grid';
 import { RoomLabels, WallDimensions } from './layers/Annotations';
+import { CeilingPlaneLayer, HeadroomLayer } from './layers/CeilingLayers';
 import { GhostFloorLayer } from './layers/GhostFloorLayer';
 import { OpeningLayer } from './layers/OpeningSymbol';
 import { RoomLayer, UnderlayLayer, WallLayer } from './layers/PlanLayers';
+import { StairLayer } from './layers/StairLayer';
 import { usePlanData } from './planData';
 import { ScaleBar } from './ScaleBar';
 import { ToolOptions } from './ToolOptions';
 import { useCalibrateTool } from './tools/useCalibrateTool';
 import { useSelectTool } from './tools/useSelectTool';
+import { useCeilingTool } from './tools/useCeilingTool';
 import { useOpeningTool } from './tools/useOpeningTool';
+import { useStairTool } from './tools/useStairTool';
 import { useWallTool } from './tools/useWallTool';
 import type { ToolContext, ToolHandlers } from './tools/types';
 import { centeredViewport, MAX_SCALE, MIN_SCALE, panBy, screenToPlan, zoomAt } from './viewport';
@@ -145,6 +150,9 @@ export function PlanView() {
   const toolName = useViewStore((s) => s.tool);
   const selection = useViewStore((s) => s.selection);
   const showDimensions = useViewStore((s) => s.showDimensions);
+  const showHeadroom = useViewStore((s) => s.showHeadroom);
+  const headroomLimits = useViewStore((s) => s.headroomLimits);
+  const stairs = useProjectStore((s) => mainBuilding(s.project)?.stairs);
 
   // null = fitted to the content; frozen as soon as the user interacts, so drawing never moves the view.
   // Stored as "plan point at the pane centre + zoom", so resizing the pane (e.g. split view) keeps
@@ -180,12 +188,16 @@ export function PlanView() {
   const doorTool = useOpeningTool(ctx, 'door');
   const windowTool = useOpeningTool(ctx, 'window');
   const calibrateTool = useCalibrateTool(ctx);
+  const ceilingTool = useCeilingTool(ctx);
+  const stairTool = useStairTool(ctx);
   const tool = {
     select: selectTool,
     wall: wallTool,
     calibrate: calibrateTool,
     door: doorTool,
     window: windowTool,
+    ceiling: ceilingTool,
+    stair: stairTool,
     pan: IDLE_TOOL,
   }[toolName];
 
@@ -272,8 +284,23 @@ export function PlanView() {
               {ghostFloor && <GhostFloorLayer floor={ghostFloor} />}
               <UnderlayLayer floor={floor} selection={selection} />
               <RoomLayer rooms={rooms} floor={floor} selection={selection} />
+              {showHeadroom && Object.keys(floor.ceilingPlanes).length > 0 && (
+                <HeadroomLayer floor={floor} low={headroomLimits.low} mid={headroomLimits.mid} />
+              )}
               <WallLayer outlines={outlines} floor={floor} selection={selection} />
               <OpeningLayer floor={floor} selectedId={selection?.kind === 'opening' ? selection.id : null} />
+              {stairs && (
+                <StairLayer
+                  stairs={stairs}
+                  floorId={floor.id}
+                  selectedId={selection?.kind === 'stair' ? selection.id : null}
+                />
+              )}
+              <CeilingPlaneLayer
+                floor={floor}
+                selectedId={selection?.kind === 'ceilingPlane' ? selection.id : null}
+                scale={view.scale}
+              />
             </g>
             <RoomLabels rooms={rooms} floor={floor} view={view} />
             <WallDimensions floor={floor} view={view} selection={selection} showAll={showDimensions} />

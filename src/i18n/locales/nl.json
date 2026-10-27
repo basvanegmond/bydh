@@ -226,6 +226,33 @@
       "top-hung": "Valraam"
     }
   },
+  "ceilings": {
+    "tool": "Plafondvlak (R)",
+    "kneeHeight": "Hoogte knieschot (cm)",
+    "slope": "Helling (graden)",
+    "roofFromWalls": "Dak vanuit muren",
+    "roofFromWallsEmpty": "Geen gesloten buitenmuren met een tegenover elkaar liggend paar gevonden, dus er is geen dak toegevoegd.",
+    "usableArea": "Oppervlak met minstens 1,8 m hoofdruimte",
+    "openingTooTall": "Deze opening is hoger dan het plafond op die plek ({{ceiling}} cm).",
+    "hint": {
+      "first": "Klik op het eerste punt van de dakvoet. Esc stopt.",
+      "second": "Klik op het tweede punt van de dakvoet.",
+      "side": "Klik aan de kant waar het plafond oploopt. Esc annuleert."
+    },
+    "defaults": {
+      "title": "Nieuw plafondvlak"
+    },
+    "headroom": {
+      "toggle": "Hoofdruimte tonen"
+    },
+    "inspector": {
+      "title": "Plafondvlak",
+      "rises": "Loopt op naar {{side}}",
+      "eaveHeight": "Plafondhoogte bij dakvoet",
+      "reach": "Afstand tot vlak plafond",
+      "noReach": "Niet bereikt"
+    }
+  },
   "language": {
     "label": "Taal",
     "en": "English",
@@ -245,5 +272,38 @@
     "keepMine": "Mijn versie behouden (overschrijven)",
     "saveCopy": "Mijn versie opslaan als kopie",
     "copyName": "{{name}} (kopie uit dit tabblad)"
+  },
+  "stairs": {
+    "tool": "Trap plaatsen (S)",
+    "hint": {
+      "start": "Klik waar de onderste trede komt. Esc stopt.",
+      "direction": "Klik om de richting van de trap te bepalen. Shift rondt af op 15°. Esc annuleert.",
+      "noFloorAbove": "Voeg eerst een verdieping erboven toe: een trap heeft een verdieping nodig om naartoe te gaan."
+    },
+    "shape": {
+      "straight": "Recht",
+      "quarter-turn": "Kwartslag",
+      "half-turn": "Halve slag"
+    },
+    "turn": {
+      "left": "Draait naar links",
+      "right": "Draait naar rechts"
+    },
+    "inspector": {
+      "title": "Trap",
+      "shape": "Vorm",
+      "turn": "Draairichting",
+      "width": "Breedte (cm)",
+      "runLength": "Looplengte (cm)",
+      "steps": "Aantal treden",
+      "rotation": "Richting (°)",
+      "cutsVoid": "Gat in de vloer erboven",
+      "riser": "Optrede",
+      "tread": "Aantrede"
+    },
+    "warning": {
+      "riser-too-high": "Een optrede boven 20 cm is steil. Voeg treden toe.",
+      "tread-too-short": "Een aantrede onder 22 cm is te krap. Verleng de trap of gebruik minder treden."
+    }
   }
 }
