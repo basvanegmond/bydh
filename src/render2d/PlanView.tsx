@@ -1,18 +1,30 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Vec2 } from '@/domain/schema';
+import { boundingBox } from '@/domain/geometry/polygon';
+import { imageToPlan } from '@/domain/model/underlay';
+import type { Floor, Vec2 } from '@/domain/schema';
 import { formatLength } from '@/domain/units/format';
 import { currentLocale } from '@/i18n';
+import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
 import { Grid } from './Grid';
+import { RoomLabels, WallDimensions } from './layers/Annotations';
+import { RoomLayer, UnderlayLayer, WallLayer } from './layers/PlanLayers';
+import { usePlanData } from './planData';
 import { ScaleBar } from './ScaleBar';
-import { centeredViewport, panBy, screenToPlan, zoomAt } from './viewport';
+import { ToolOptions } from './ToolOptions';
+import { useCalibrateTool } from './tools/useCalibrateTool';
+import { useSelectTool } from './tools/useSelectTool';
+import { useWallTool } from './tools/useWallTool';
+import type { ToolContext, ToolHandlers } from './tools/types';
+import { centeredViewport, MAX_SCALE, MIN_SCALE, panBy, screenToPlan, zoomAt } from './viewport';
 import type { Viewport } from './viewport';
 
-const INITIAL_SCALE = 0.05; // 1 m = 50 px: a typical house fills the screen
+const INITIAL_SCALE = 0.05; // 1 m = 50 px
 const WHEEL_ZOOM = 1.0015;
-const ORIGIN: Vec2 = { x: 0, y: 0 };
+const SNAP_RADIUS_PX = 10;
+const FIT_PADDING_PX = 60;
 
 function useElementSize(ref: RefObject<HTMLElement | null>) {
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -28,9 +40,24 @@ function useElementSize(ref: RefObject<HTMLElement | null>) {
   return size;
 }
 
+/** Fits walls and background images, or centres the origin on an empty floor. */
+function fitView(size: { width: number; height: number }, floor: Floor | undefined): Viewport {
+  const points: Vec2[] = Object.values(floor?.wallNodes ?? {}).map((n) => n.position);
+  for (const u of Object.values(floor?.underlays ?? {})) {
+    points.push(imageToPlan(u, { x: 0, y: 0 }), imageToPlan(u, { x: u.imagePx.w, y: u.imagePx.h }));
+  }
+  const box = boundingBox(points);
+  if (!box) return centeredViewport(size, { x: 0, y: 0 }, INITIAL_SCALE);
+  const w = Math.max(box.max.x - box.min.x, 1000);
+  const h = Math.max(box.max.y - box.min.y, 1000);
+  const fit = Math.min((size.width - 2 * FIT_PADDING_PX) / w, (size.height - 2 * FIT_PADDING_PX) / h);
+  const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, fit));
+  return centeredViewport(size, { x: (box.min.x + box.max.x) / 2, y: (box.min.y + box.max.y) / 2 }, scale);
+}
+
 type UpdateView = (change: (view: Viewport) => Viewport) => void;
 
-/** Pointer-driven pan and pinch-zoom. Middle mouse, space+drag or the pan tool pans. */
+/** Pan (middle mouse, space+drag, pan tool, one finger) and pinch zoom. */
 function usePanZoom(updateView: UpdateView) {
   const pointers = useRef(new Map<number, Vec2>());
   const spaceHeld = useRef(false);
@@ -47,21 +74,22 @@ function usePanZoom(updateView: UpdateView) {
     };
   }, []);
 
-  const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
+  /** Returns true when the press starts a pan instead of a tool action. */
+  const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>): boolean => {
     const panning = tool === 'pan' || e.button === 1 || spaceHeld.current || e.pointerType === 'touch';
-    if (!panning) return;
+    if (!panning) return false;
     e.currentTarget.setPointerCapture(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    return true;
   };
 
-  const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+  /** Returns true while panning. */
+  const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>): boolean => {
     const previous = pointers.current.get(e.pointerId);
-    if (!previous) return;
+    if (!previous) return false;
     const next = { x: e.clientX, y: e.clientY };
-    const others = [...pointers.current.entries()].filter(([id]) => id !== e.pointerId);
-    const other = others[0]?.[1];
+    const other = [...pointers.current.entries()].find(([id]) => id !== e.pointerId)?.[1];
     if (other) {
-      // Pinch: zoom by the change in finger distance around the midpoint.
       const rect = e.currentTarget.getBoundingClientRect();
       const factor =
         Math.hypot(next.x - other.x, next.y - other.y) /
@@ -72,36 +100,69 @@ function usePanZoom(updateView: UpdateView) {
       updateView((v) => panBy(v, next.x - previous.x, next.y - previous.y));
     }
     pointers.current.set(e.pointerId, next);
+    return true;
   };
 
-  const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>) => {
-    pointers.current.delete(e.pointerId);
-  };
+  const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>): boolean => pointers.current.delete(e.pointerId);
 
-  return { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp };
+  return { onPointerDown, onPointerMove, onPointerUp };
 }
+
+const IDLE_TOOL: ToolHandlers = {
+  onPointerDown: () => undefined,
+  onPointerMove: () => undefined,
+  onPointerUp: () => undefined,
+  onKeyDown: () => false,
+  overlay: null,
+  html: null,
+  cursor: 'grab',
+};
+
+const isTyping = (target: EventTarget | null) =>
+  target instanceof HTMLElement &&
+  (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
 export function PlanView() {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const size = useElementSize(containerRef);
-  // null = the default view (origin centred); set once the user pans or zooms.
+  const { floor, outlines, rooms } = usePlanData();
+  const gridMm = useProjectStore((s) => s.project.settings.gridMm);
+  const toolName = useViewStore((s) => s.tool);
+  const selection = useViewStore((s) => s.selection);
+  const showDimensions = useViewStore((s) => s.showDimensions);
+
+  // null = fitted to the content; frozen as soon as the user interacts, so drawing never moves the view.
   const [userView, setUserView] = useState<Viewport | null>(null);
   const [cursor, setCursor] = useState<Vec2 | null>(null);
-  const sizeRef = useRef(size);
+  const fittedRef = useRef<Viewport | null>(null);
+  const fitted = size.width > 0 ? fitView(size, floor) : null;
   useEffect(() => {
-    sizeRef.current = size;
-  }, [size]);
+    fittedRef.current = fitted;
+  });
+  const view = userView ?? fitted;
 
   const updateView = useCallback<UpdateView>((change) => {
-    setUserView((v) => change(v ?? centeredViewport(sizeRef.current, ORIGIN, INITIAL_SCALE)));
+    setUserView((v) => {
+      const base = v ?? fittedRef.current;
+      return base ? change(base) : v;
+    });
   }, []);
-  const resetView = useCallback(() => setUserView(null), []);
   const panZoom = usePanZoom(updateView);
-  const view = userView ?? (size.width > 0 ? centeredViewport(size, ORIGIN, INITIAL_SCALE) : null);
 
-  // Native listener: React's onWheel is passive, so it cannot prevent page zoom/scroll.
+  const ctx: ToolContext = {
+    view: view ?? { scale: INITIAL_SCALE, offsetX: 0, offsetY: 0 },
+    floor,
+    floorId: floor?.id ?? null,
+    toleranceMm: SNAP_RADIUS_PX / (view?.scale ?? INITIAL_SCALE),
+    gridMm,
+  };
+  const selectTool = useSelectTool(ctx);
+  const wallTool = useWallTool(ctx);
+  const calibrateTool = useCalibrateTool(ctx);
+  const tool = { select: selectTool, wall: wallTool, calibrate: calibrateTool, pan: IDLE_TOOL }[toolName];
+
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
@@ -115,19 +176,45 @@ export function PlanView() {
     return () => svg.removeEventListener('wheel', onWheel);
   }, [updateView]);
 
+  const toolRef = useRef(tool);
+  useEffect(() => {
+    toolRef.current = tool;
+  });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === '0' && !(e.target instanceof HTMLInputElement)) resetView();
+      if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (toolRef.current.onKeyDown(e)) {
+        e.preventDefault();
+        return;
+      }
+      if (e.key === '0') setUserView(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [resetView]);
+  }, []);
 
-  const onMove = (e: ReactPointerEvent<SVGSVGElement>) => {
-    panZoom.onPointerMove(e);
-    if (!view) return;
+  const toPlan = (e: ReactPointerEvent<SVGSVGElement>): Vec2 | null => {
+    if (!view) return null;
     const rect = e.currentTarget.getBoundingClientRect();
-    setCursor(screenToPlan(view, { x: e.clientX - rect.left, y: e.clientY - rect.top }));
+    return screenToPlan(view, { x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+
+  const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (!userView && view) setUserView(view);
+    if (panZoom.onPointerDown(e)) return;
+    const p = toPlan(e);
+    if (p) tool.onPointerDown(e, p);
+  };
+  const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (panZoom.onPointerMove(e)) return;
+    const p = toPlan(e);
+    setCursor(p);
+    if (p) tool.onPointerMove(e, p);
+  };
+  const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (panZoom.onPointerUp(e)) return;
+    const p = toPlan(e);
+    if (p) tool.onPointerUp(e, p);
   };
 
   const locale = currentLocale();
@@ -135,20 +222,36 @@ export function PlanView() {
     <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-[var(--plan-paper)]">
       <svg
         ref={svgRef}
-        role="img"
+        role="application"
         aria-label={t('plan.label')}
         data-testid="plan-svg"
         width={size.width}
         height={size.height}
         className="block touch-none select-none"
-        onPointerDown={panZoom.onPointerDown}
-        onPointerMove={onMove}
-        onPointerUp={panZoom.onPointerUp}
-        onPointerCancel={panZoom.onPointerCancel}
+        style={{ cursor: tool.cursor }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
         onPointerLeave={() => setCursor(null)}
+        onDoubleClick={() => tool.onDoubleClick?.()}
       >
         {view && <Grid view={view} width={size.width} height={size.height} />}
+        {view && floor && (
+          <>
+            <g transform={`matrix(${view.scale} 0 0 ${-view.scale} ${view.offsetX} ${view.offsetY})`}>
+              <UnderlayLayer floor={floor} selection={selection} />
+              <RoomLayer rooms={rooms} floor={floor} selection={selection} />
+              <WallLayer outlines={outlines} floor={floor} selection={selection} />
+            </g>
+            <RoomLabels rooms={rooms} floor={floor} view={view} />
+            <WallDimensions floor={floor} view={view} selection={selection} showAll={showDimensions} />
+          </>
+        )}
+        {view && tool.overlay}
       </svg>
+      {tool.html}
+      <ToolOptions />
       {view && <ScaleBar view={view} />}
       <div className="pointer-events-none absolute right-3 bottom-3 rounded bg-background/80 px-2 py-1 font-mono text-xs text-muted-foreground tabular-nums">
         {t('plan.cursor')}:{' '}

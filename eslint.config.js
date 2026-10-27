@@ -27,7 +27,7 @@ export default tseslint.config(
   },
   {
     // Entities live in Record<Id, T> maps; `delete map[id]` is how they are removed.
-    files: ['src/domain/**/*.ts', 'src/store/**/*.ts', 'src/storage/**/*.ts', 'tests/**/*.ts'],
+    files: ['src/**/*.{ts,tsx}', 'tests/**/*.ts'],
     rules: { '@typescript-eslint/no-dynamic-delete': 'off' },
   },
   {

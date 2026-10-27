@@ -1,12 +1,41 @@
 {
-  "app": { "name": "BYDH", "title": "Build your dream home" },
-  "view": { "label": "View", "2d": "2D plan", "3d": "3D", "split": "Split" },
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel"
+  },
+  "app": {
+    "name": "BYDH",
+    "title": "Build your dream home",
+    "defaultProjectName": "My home"
+  },
+  "view": {
+    "label": "View",
+    "2d": "2D plan",
+    "3d": "3D",
+    "split": "Split",
+    "dimensions": "Show dimensions"
+  },
   "tools": {
     "label": "Tools",
     "select": "Select (V)",
     "pan": "Pan (H)",
-    "wall": "Draw walls",
-    "comingSoon": "{{tool}} arrives in phase {{phase}}"
+    "wall": "Draw walls (W)",
+    "calibrate": "Calibrate background (C)",
+    "importUnderlay": "Import floor plan image or PDF"
+  },
+  "wallTool": {
+    "hint": "Click to start a wall. Type a length in cm and press Enter. Shift locks 45°. Esc stops.",
+    "thickness": "Wall thickness",
+    "typed": "Length: {{value}}"
+  },
+  "calibrate": {
+    "hint": "Click two points on the background whose real distance you know.",
+    "hintSecond": "Now click the second point.",
+    "prompt": "Real distance between the two points (e.g. 562 or 5,62 m)",
+    "apply": "Apply scale",
+    "cancel": "Cancel",
+    "invalid": "Enter a distance such as 562 (cm) or 5,62 m.",
+    "noUnderlay": "Import a floor plan image first."
   },
   "floor": {
     "label": "Floor",
@@ -19,14 +48,98 @@
       "roof": "Roof"
     }
   },
-  "project": { "label": "Project", "variant": "Variant" },
+  "project": {
+    "label": "Project",
+    "menu": "Project menu",
+    "new": "New project",
+    "newName": "New project",
+    "open": "Open project",
+    "rename": "Rename project…",
+    "delete": "Delete project…",
+    "deleteConfirm": "Delete \"{{name}}\" from this browser? Exported files are not affected.",
+    "export": "Download as JSON",
+    "saveToFile": "Save to file…",
+    "import": "Import JSON…",
+    "namePrompt": "Project name"
+  },
+  "import": {
+    "title": "Import a project file",
+    "description": "Importing never overwrites anything.",
+    "asNew": "Open as a new project",
+    "asNewHint": "Keeps it separate from the project you have open.",
+    "asVariants": "Add its variants to \"{{name}}\"",
+    "asVariantsHint": "Handy for comparing a layout your partner made.",
+    "failed": "This file could not be imported: {{message}}",
+    "done": "Imported {{count}} variant(s)."
+  },
+  "variant": {
+    "label": "Variant",
+    "menu": "Variant menu",
+    "duplicate": "Duplicate variant",
+    "rename": "Rename variant…",
+    "delete": "Delete variant…",
+    "deleteConfirm": "Delete variant \"{{name}}\"?",
+    "copySuffix": "(copy)",
+    "importedSuffix": "(imported)",
+    "namePrompt": "Variant name"
+  },
+  "history": {
+    "undo": "Undo (Ctrl+Z)",
+    "redo": "Redo (Ctrl+Shift+Z)"
+  },
+  "save": {
+    "saving": "Saving…",
+    "saved": "Saved in this browser",
+    "error": "Could not save: {{error}}",
+    "notDurable": "Browser storage unavailable: export to keep your work"
+  },
   "inspector": {
     "title": "Properties",
     "nothingSelected": "Nothing selected",
-    "hint": "Select a wall, room or object to edit it here.",
+    "hint": "Select a wall, room or background image to edit it here.",
     "floors": "Floors",
     "walls": "Walls",
-    "rooms": "Rooms"
+    "rooms": "Rooms",
+    "locked": "Locked",
+    "delete": "Delete",
+    "wall": {
+      "title": "Wall",
+      "length": "Length (cm)",
+      "thickness": "Thickness (cm)",
+      "height": "Height (cm)",
+      "justification": "Wall sits",
+      "center": "Centred on the line",
+      "left": "Right of the line",
+      "right": "Left of the line",
+      "leftSide": "Colour, left side",
+      "rightSide": "Colour, right side"
+    },
+    "room": {
+      "title": "Room",
+      "name": "Name",
+      "area": "Floor area",
+      "floorMaterial": "Floor"
+    },
+    "underlay": {
+      "title": "Background image",
+      "opacity": "Opacity",
+      "rotation": "Rotation (°)",
+      "scale": "Scale: 1 px = {{value}}",
+      "calibrate": "Calibrate scale"
+    }
+  },
+  "room": {
+    "unnamed": "Room"
+  },
+  "materials": {
+    "oak-plank": "Oak planks",
+    "oak-herringbone": "Oak herringbone",
+    "walnut-plank": "Walnut planks",
+    "tile-light": "Light tiles",
+    "tile-anthracite": "Anthracite tiles",
+    "concrete-polished": "Polished concrete",
+    "carpet-sand": "Sand carpet",
+    "paint-white": "Warm white paint"
   },
   "plan": {
     "label": "2D floor plan",
@@ -39,5 +152,9 @@
     "loading": "Loading 3D view…",
     "error": "The 3D view could not start. Your browser may have WebGL disabled."
   },
-  "language": { "label": "Language", "en": "English", "nl": "Nederlands" }
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "nl": "Nederlands"
+  }
 }
