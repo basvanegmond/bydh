@@ -1,0 +1,28 @@
+[
+  { "id": "oak-plank", "name": "Oak planks", "kind": "wood", "color": "#c8a27a", "finish": "matt" },
+  {
+    "id": "oak-herringbone",
+    "name": "Oak herringbone",
+    "kind": "wood",
+    "color": "#b98d5f",
+    "finish": "matt"
+  },
+  { "id": "walnut-plank", "name": "Walnut planks", "kind": "wood", "color": "#7a5236", "finish": "satin" },
+  { "id": "tile-light", "name": "Light tiles", "kind": "tile", "color": "#dcd8d0", "finish": "satin" },
+  {
+    "id": "tile-anthracite",
+    "name": "Anthracite tiles",
+    "kind": "tile",
+    "color": "#4b4c4e",
+    "finish": "matt"
+  },
+  {
+    "id": "concrete-polished",
+    "name": "Polished concrete",
+    "kind": "concrete",
+    "color": "#a9a8a3",
+    "finish": "satin"
+  },
+  { "id": "carpet-sand", "name": "Sand carpet", "kind": "carpet", "color": "#cbbfa8", "finish": "matt" },
+  { "id": "paint-white", "name": "Warm white paint", "kind": "paint", "color": "#f4f1ea", "finish": "matt" }
+]

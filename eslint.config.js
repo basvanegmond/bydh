@@ -16,12 +16,19 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
+      '@typescript-eslint/no-unused-vars': ['error', { ignoreRestSiblings: true, argsIgnorePattern: '^_' }],
     },
   },
   {
-    // Fixtures index into records they just built; `!` is clearer than guards there.
-    files: ['tests/**/*.ts'],
+    // Fixtures index into records they just built, and geometry code indexes arrays modulo their
+    // length; with noUncheckedIndexedAccess, `!` is clearer than guards there.
+    files: ['tests/**/*.ts', 'src/domain/**/*.ts'],
     rules: { '@typescript-eslint/no-non-null-assertion': 'off' },
+  },
+  {
+    // Entities live in Record<Id, T> maps; `delete map[id]` is how they are removed.
+    files: ['src/**/*.{ts,tsx}', 'tests/**/*.ts'],
+    rules: { '@typescript-eslint/no-dynamic-delete': 'off' },
   },
   {
     // The domain layer is pure TypeScript: no React, three.js, stores or DOM-bound code.

@@ -2,6 +2,8 @@
 
 Each phase ends with a summary and Bas's approval before the next starts.
 
+**Status:** Phase 0 done (2026-10-27). Phase 1 done pending review (2026-10-27): all acceptance checks are automated in `tests/e2e/walls-rooms.spec.ts`.
+
 | Phase                     | Scope                                                                                                                                                                                                                       | Done when                                                                                                                     |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | 0 Foundations             | Repo, CI/CD to Pages, CLAUDE.md, scene schema, empty 2D and 3D canvases                                                                                                                                                     | A push deploys and the URL loads                                                                                              |

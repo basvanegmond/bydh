@@ -1,12 +1,16 @@
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { DialogHost } from '@/features/dialogs/dialogs';
 import { Inspector } from '@/features/inspector/Inspector';
+import { ImportDialog } from '@/features/project/ImportDialog';
 import { ToolRail } from '@/features/toolbar/ToolRail';
 import { TopBar } from '@/features/toolbar/TopBar';
 import { PlanView } from '@/render2d/PlanView';
 import { View3D } from '@/render3d/View3D';
 import { useViewStore } from '@/store/viewStore';
+import { useShortcuts } from './useShortcuts';
 
 export function App() {
+  useShortcuts();
   const viewMode = useViewStore((state) => state.viewMode);
   const show2d = viewMode !== '3d';
   const show3d = viewMode !== '2d';
@@ -23,7 +27,8 @@ export function App() {
           >
             {show2d && (
               <section className="min-h-0 min-w-0" data-testid="pane-2d">
-                <PlanView />
+                {/* Re-keyed per layout so switching 2D/split re-fits the house in the new pane size. */}
+                <PlanView key={viewMode} />
               </section>
             )}
             {show3d && (
@@ -35,6 +40,8 @@ export function App() {
           <Inspector />
         </div>
       </div>
+      <DialogHost />
+      <ImportDialog />
     </TooltipProvider>
   );
 }

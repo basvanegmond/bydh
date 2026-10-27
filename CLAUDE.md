@@ -33,9 +33,11 @@
 
 - `src/domain/`: **pure TypeScript** (no React, three, stores or DOM). ESLint enforces it.
   - `schema/` (Zod schemas, inferred types, factories, migrations, project file I/O), `units/` (mm ↔ cm/m, nl/en formatting)
-- `src/store/`: Zustand stores. `projectStore` = the design; `viewStore` = per-viewer UI state (never saved in the project)
-- `src/render2d/`: SVG plan view and pure viewport math. `src/render3d/`: R3F scene (separate chunk)
-- `src/features/`: toolbar, inspector, dialogs. `src/components/ui/`: shadcn-generated (do not hand-edit lightly)
+  - `geometry/` (vectors, segments, polygons), `model/` (wall graph, mitred outlines, room detection, underlay transform), `snapping/`, `history/` (patch-based undo), `io/` (import merge rules)
+- `src/store/`: Zustand stores. `projectStore` = the design + undo history (`edit`, `editFloor` re-detects rooms, transactions for drags); `viewStore` = per-viewer UI state (tool, selection; never saved in the project)
+- `src/storage/`: `ProjectRepository` interface, IndexedDB adapter (DB per deploy channel), autosave session, JSON export/import, save-to-file
+- `src/render2d/`: SVG plan view, layers, tools (`useSelectTool`, `useWallTool`, `useCalibrateTool`) and pure viewport math. `src/render3d/`: R3F scene (separate chunk)
+- `src/features/`: toolbar, inspector, project/variant actions, dialogs, background import. `src/data/`: catalogue data (materials). `src/components/ui/`: shadcn-generated (do not hand-edit lightly)
 - `src/i18n/`: i18next setup + `locales/en.json`, `locales/nl.json` (every UI string goes in both)
 - `tests/unit/`: Vitest, mirrors `src/`. `tests/e2e/`: Playwright
 - `docs/`: architecture, ADRs in `docs/decisions/`, roadmap. `docs/plans/` is **gitignored**: it holds the real house plans and address.

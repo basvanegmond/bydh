@@ -1,12 +1,41 @@
 {
-  "app": { "name": "BYDH", "title": "Bouw je droomhuis" },
-  "view": { "label": "Weergave", "2d": "2D-plattegrond", "3d": "3D", "split": "Gesplitst" },
+  "common": {
+    "ok": "OK",
+    "cancel": "Annuleren"
+  },
+  "app": {
+    "name": "BYDH",
+    "title": "Bouw je droomhuis",
+    "defaultProjectName": "Ons huis"
+  },
+  "view": {
+    "label": "Weergave",
+    "2d": "2D-plattegrond",
+    "3d": "3D",
+    "split": "Gesplitst",
+    "dimensions": "Maten tonen"
+  },
   "tools": {
     "label": "Gereedschap",
     "select": "Selecteren (V)",
     "pan": "Verschuiven (H)",
-    "wall": "Muren tekenen",
-    "comingSoon": "{{tool}} komt in fase {{phase}}"
+    "wall": "Muren tekenen (W)",
+    "calibrate": "Achtergrond op schaal brengen (C)",
+    "importUnderlay": "Plattegrond importeren (afbeelding of PDF)"
+  },
+  "wallTool": {
+    "hint": "Klik om een muur te beginnen. Typ een lengte in cm en druk op Enter. Shift vergrendelt op 45°. Esc stopt.",
+    "thickness": "Muurdikte",
+    "typed": "Lengte: {{value}}"
+  },
+  "calibrate": {
+    "hint": "Klik op twee punten op de achtergrond waarvan je de echte afstand weet.",
+    "hintSecond": "Klik nu op het tweede punt.",
+    "prompt": "Echte afstand tussen de twee punten (bijv. 562 of 5,62 m)",
+    "apply": "Schaal toepassen",
+    "cancel": "Annuleren",
+    "invalid": "Vul een afstand in, zoals 562 (cm) of 5,62 m.",
+    "noUnderlay": "Importeer eerst een plattegrond."
   },
   "floor": {
     "label": "Verdieping",
@@ -19,14 +48,98 @@
       "roof": "Dak"
     }
   },
-  "project": { "label": "Project", "variant": "Variant" },
+  "project": {
+    "label": "Project",
+    "menu": "Projectmenu",
+    "new": "Nieuw project",
+    "newName": "Nieuw project",
+    "open": "Project openen",
+    "rename": "Project hernoemen…",
+    "delete": "Project verwijderen…",
+    "deleteConfirm": "\"{{name}}\" uit deze browser verwijderen? Geëxporteerde bestanden blijven bestaan.",
+    "export": "Downloaden als JSON",
+    "saveToFile": "Opslaan als bestand…",
+    "import": "JSON importeren…",
+    "namePrompt": "Projectnaam"
+  },
+  "import": {
+    "title": "Projectbestand importeren",
+    "description": "Importeren overschrijft nooit iets.",
+    "asNew": "Openen als nieuw project",
+    "asNewHint": "Blijft los van het project dat nu open staat.",
+    "asVariants": "Varianten toevoegen aan \"{{name}}\"",
+    "asVariantsHint": "Handig om een indeling van je partner te vergelijken.",
+    "failed": "Dit bestand kon niet worden geïmporteerd: {{message}}",
+    "done": "{{count}} variant(en) geïmporteerd."
+  },
+  "variant": {
+    "label": "Variant",
+    "menu": "Variantmenu",
+    "duplicate": "Variant dupliceren",
+    "rename": "Variant hernoemen…",
+    "delete": "Variant verwijderen…",
+    "deleteConfirm": "Variant \"{{name}}\" verwijderen?",
+    "copySuffix": "(kopie)",
+    "importedSuffix": "(geïmporteerd)",
+    "namePrompt": "Naam van de variant"
+  },
+  "history": {
+    "undo": "Ongedaan maken (Ctrl+Z)",
+    "redo": "Opnieuw (Ctrl+Shift+Z)"
+  },
+  "save": {
+    "saving": "Opslaan…",
+    "saved": "Opgeslagen in deze browser",
+    "error": "Opslaan mislukt: {{error}}",
+    "notDurable": "Browseropslag niet beschikbaar: exporteer om je werk te bewaren"
+  },
   "inspector": {
     "title": "Eigenschappen",
     "nothingSelected": "Niets geselecteerd",
-    "hint": "Selecteer een muur, ruimte of object om het hier te bewerken.",
+    "hint": "Selecteer een muur, ruimte of achtergrond om die hier te bewerken.",
     "floors": "Verdiepingen",
     "walls": "Muren",
-    "rooms": "Ruimtes"
+    "rooms": "Ruimtes",
+    "locked": "Vergrendeld",
+    "delete": "Verwijderen",
+    "wall": {
+      "title": "Muur",
+      "length": "Lengte (cm)",
+      "thickness": "Dikte (cm)",
+      "height": "Hoogte (cm)",
+      "justification": "Muur ligt",
+      "center": "Midden op de lijn",
+      "left": "Rechts van de lijn",
+      "right": "Links van de lijn",
+      "leftSide": "Kleur linkerzijde",
+      "rightSide": "Kleur rechterzijde"
+    },
+    "room": {
+      "title": "Ruimte",
+      "name": "Naam",
+      "area": "Vloeroppervlak",
+      "floorMaterial": "Vloer"
+    },
+    "underlay": {
+      "title": "Achtergrond",
+      "opacity": "Dekking",
+      "rotation": "Rotatie (°)",
+      "scale": "Schaal: 1 px = {{value}}",
+      "calibrate": "Op schaal brengen"
+    }
+  },
+  "room": {
+    "unnamed": "Ruimte"
+  },
+  "materials": {
+    "oak-plank": "Eiken planken",
+    "oak-herringbone": "Eiken visgraat",
+    "walnut-plank": "Notenhouten planken",
+    "tile-light": "Lichte tegels",
+    "tile-anthracite": "Antraciet tegels",
+    "concrete-polished": "Gepolijst beton",
+    "carpet-sand": "Zandkleurig tapijt",
+    "paint-white": "Warm wit"
   },
   "plan": {
     "label": "2D-plattegrond",
@@ -39,5 +152,9 @@
     "loading": "3D-weergave laden…",
     "error": "De 3D-weergave kon niet starten. Mogelijk staat WebGL uit in je browser."
   },
-  "language": { "label": "Taal", "en": "English", "nl": "Nederlands" }
+  "language": {
+    "label": "Taal",
+    "en": "English",
+    "nl": "Nederlands"
+  }
 }
