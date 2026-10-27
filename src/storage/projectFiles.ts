@@ -1,5 +1,6 @@
+import { referencedAssetIds, rekeyAssets } from '@/domain/io/assets';
 import { addVariantsFrom, asNewProject } from '@/domain/io/merge';
-import { parseProjectFile, serializeProjectFile, toProjectFile } from '@/domain/schema';
+import { newId, parseProjectFile, serializeProjectFile, toProjectFile } from '@/domain/schema';
 import type { EmbeddedAsset, Id, Project } from '@/domain/schema';
 import type { ProjectRepository } from './repository';
 
@@ -32,7 +33,82 @@ export async function exportProjectJson(project: Project, repo: ProjectRepositor
 export type ImportMode = 'new-project' | 'add-variants';
 
 export type ImportResult =
-  { ok: true; project: Project; addedVariants: number } | { ok: false; message: string; issues?: string[] };
+  | {
+      ok: true;
+      /** The project to open: a new project, or a snapshot of `current` plus the added variants. */
+      project: Project;
+      /** The validated file contents (assets already re-keyed), for merging into a live project. */
+      imported: Project;
+      addedVariants: number;
+    }
+  | { ok: false; message: string; issues?: string[] };
+
+async function sha256Hex(blob: Blob): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Stores the embedded assets without ever overwriting (ADR 0003): an id that already exists with
+ * identical bytes is skipped; with different bytes the incoming asset gets a new id. Returns the
+ * project with references rewritten and library sha256 values set to the real hash.
+ */
+async function storeImportedAssets(
+  imported: Project,
+  assets: Record<Id, EmbeddedAsset>,
+  repo: ProjectRepository,
+): Promise<Project> {
+  const mapping: Record<Id, Id> = {};
+  const hashes: Record<Id, string> = {};
+  for (const [id, asset] of Object.entries(assets)) {
+    const blob = base64ToBlob(asset.base64, asset.mime);
+    const hash = await sha256Hex(blob);
+    const existing = await repo.getAsset(id);
+    let finalId = id;
+    if (existing) {
+      if ((await sha256Hex(existing.blob)) === hash) {
+        hashes[id] = hash;
+        continue;
+      }
+      finalId = newId();
+      mapping[id] = finalId;
+    }
+    hashes[finalId] = hash;
+    await repo.putAsset({
+      id: finalId,
+      name: imported.library.assets[id]?.name ?? id,
+      mime: asset.mime,
+      blob,
+    });
+  }
+  const project = rekeyAssets(imported, mapping);
+  for (const [id, hash] of Object.entries(hashes)) {
+    const ref = project.library.assets[id];
+    if (ref) project.library.assets[id] = { ...ref, sha256: hash };
+  }
+  return project;
+}
+
+/**
+ * Deletes a project and then any of its assets that no remaining project references.
+ * If a remaining project cannot be read, nothing is garbage-collected (never lose images).
+ */
+export async function deleteProjectWithAssets(repo: ProjectRepository, id: Id): Promise<void> {
+  const doomed = await repo.loadProject(id).catch(() => undefined);
+  await repo.deleteProject(id);
+  if (!doomed) return;
+  const candidates = referencedAssetIds(doomed);
+  try {
+    for (const summary of await repo.listProjects()) {
+      const other = await repo.loadProject(summary.id);
+      if (!other) continue;
+      for (const assetId of referencedAssetIds(other)) candidates.delete(assetId);
+    }
+  } catch {
+    return;
+  }
+  for (const assetId of candidates) await repo.deleteAsset(assetId);
+}
 
 /**
  * Validates an exported file, stores its assets and returns the project to open:
@@ -48,23 +124,14 @@ export async function importProjectJson(
   const parsed = parseProjectFile(text);
   if (!parsed.ok)
     return { ok: false, message: parsed.message, ...(parsed.issues ? { issues: parsed.issues } : {}) };
-  const { project: imported, assets = {} } = parsed.file;
-
-  for (const [id, asset] of Object.entries(assets)) {
-    const ref = imported.library.assets[id];
-    await repo.putAsset({
-      id,
-      name: ref?.name ?? id,
-      mime: asset.mime,
-      blob: base64ToBlob(asset.base64, asset.mime),
-    });
-  }
+  const { assets = {} } = parsed.file;
+  const imported = await storeImportedAssets(parsed.file.project, assets, repo);
 
   if (mode === 'new-project') {
     const names = (await repo.listProjects()).map((p) => p.name);
     const project = asNewProject(imported, names);
-    return { ok: true, project, addedVariants: project.variantOrder.length };
+    return { ok: true, project, imported, addedVariants: project.variantOrder.length };
   }
   const { project, added } = addVariantsFrom(current, imported, importedSuffix);
-  return { ok: true, project, addedVariants: added.length };
+  return { ok: true, project, imported, addedVariants: added.length };
 }

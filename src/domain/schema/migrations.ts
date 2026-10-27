@@ -5,7 +5,35 @@ type RawFile = Record<string, unknown>;
 type Migration = (file: RawFile) => RawFile;
 
 /** Add an entry here whenever SCHEMA_VERSION is bumped; never edit a released migration. */
-export const migrations: Record<number, Migration> = {};
+export const migrations: Record<number, Migration> = {
+  1: migrateV1ToV2,
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * v1 -> v2: `Floor.elevation` is no longer stored (derived from floorOrder + heights, see
+ * floorElevations). Everything else is unchanged: window frameColor becoming optional and the
+ * documented stair/building semantics are loosening or doc-only changes.
+ */
+function migrateV1ToV2(file: RawFile): RawFile {
+  const next = structuredClone(file);
+  const project = next['project'];
+  if (!isRecord(project) || !isRecord(project['variants'])) return next;
+  for (const variant of Object.values(project['variants'])) {
+    const scene = isRecord(variant) ? variant['scene'] : undefined;
+    const buildings = isRecord(scene) ? scene['buildings'] : undefined;
+    if (!isRecord(buildings)) continue;
+    for (const building of Object.values(buildings)) {
+      if (!isRecord(building) || !isRecord(building['floors'])) continue;
+      for (const floor of Object.values(building['floors'])) {
+        if (isRecord(floor)) delete floor['elevation'];
+      }
+    }
+  }
+  return next;
+}
 
 export class MigrationError extends Error {
   constructor(

@@ -8,13 +8,21 @@ const nowIso = (): string => new Date().toISOString();
 const DEFAULT_FLOOR_HEIGHT_MM = 2700;
 const DEFAULT_SLAB_MM = 200;
 
+/**
+ * Names stored in data are user content, not UI text: callers pass translated defaults (i18n)
+ * so a Dutch user does not get English names. The English fallbacks are for tests and tools.
+ */
+export interface DefaultNames {
+  variant?: string;
+  building?: string;
+}
+
 /** Without a name the UI shows the translated level ("Begane grond" / "Ground floor"). */
-export function createFloor(level: FloorLevel, elevation: number, name?: string): Floor {
+export function createFloor(level: FloorLevel, name?: string): Floor {
   return {
     id: newId(),
     ...(name ? { name } : {}),
     level,
-    elevation,
     height: DEFAULT_FLOOR_HEIGHT_MM,
     slabThickness: DEFAULT_SLAB_MM,
     wallNodes: {},
@@ -28,8 +36,8 @@ export function createFloor(level: FloorLevel, elevation: number, name?: string)
   };
 }
 
-export function createBuilding(name: string): Building {
-  const ground = createFloor('ground', 0);
+export function createBuilding(name = 'House'): Building {
+  const ground = createFloor('ground');
   return {
     id: newId(),
     name,
@@ -46,17 +54,17 @@ export function createPlot(): Plot {
   return { boundary: [], northDeg: 0, zones: {}, linears: {}, objects: {}, plants: {} };
 }
 
-export function createScene(): Scene {
-  const house = createBuilding('House');
+export function createScene(buildingName?: string): Scene {
+  const house = createBuilding(buildingName);
   return { plot: createPlot(), buildings: { [house.id]: house } };
 }
 
-export function createVariant(name: string, scene: Scene = createScene()): Variant {
+export function createVariant(name = 'Current layout', scene: Scene = createScene()): Variant {
   return { id: newId(), name, createdAt: nowIso(), scene };
 }
 
-export function createProject(name: string): Project {
-  const variant = createVariant('Current layout');
+export function createProject(name: string, names: DefaultNames = {}): Project {
+  const variant = createVariant(names.variant, createScene(names.building));
   const timestamp = nowIso();
   return {
     id: newId(),

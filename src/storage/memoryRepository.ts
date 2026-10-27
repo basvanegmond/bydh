@@ -32,4 +32,8 @@ export class MemoryRepository implements ProjectRepository {
   async putAsset(asset: StoredAsset): Promise<void> {
     this.assets.set(asset.id, asset);
   }
+
+  async deleteAsset(id: Id): Promise<void> {
+    this.assets.delete(id);
+  }
 }

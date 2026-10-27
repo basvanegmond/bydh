@@ -24,4 +24,6 @@ export interface ProjectRepository {
   deleteProject(id: Id): Promise<void>;
   getAsset(id: Id): Promise<StoredAsset | undefined>;
   putAsset(asset: StoredAsset): Promise<void>;
+  /** Removes a binary; callers make sure no project still references it. */
+  deleteAsset(id: Id): Promise<void>;
 }
