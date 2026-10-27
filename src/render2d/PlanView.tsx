@@ -7,7 +7,7 @@ import { imageToPlan } from '@/domain/model/underlay';
 import type { Floor, Vec2 } from '@/domain/schema';
 import { formatLength } from '@/domain/units/format';
 import { currentLocale } from '@/i18n';
-import { useProjectStore } from '@/store/projectStore';
+import { useCeilingSlab, useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
 import { Grid } from './Grid';
 import { RoomLabels, WallDimensions } from './layers/Annotations';
@@ -152,6 +152,7 @@ export function PlanView() {
   const showDimensions = useViewStore((s) => s.showDimensions);
   const showHeadroom = useViewStore((s) => s.showHeadroom);
   const headroomLimits = useViewStore((s) => s.headroomLimits);
+  const ceilingSlabMm = useCeilingSlab(floor?.id ?? null);
   const stairs = useProjectStore((s) => mainBuilding(s.project)?.stairs);
 
   // null = fitted to the content; frozen as soon as the user interacts, so drawing never moves the view.
@@ -285,9 +286,19 @@ export function PlanView() {
               <UnderlayLayer floor={floor} selection={selection} />
               <RoomLayer rooms={rooms} floor={floor} selection={selection} />
               {showHeadroom && Object.keys(floor.ceilingPlanes).length > 0 && (
-                <HeadroomLayer floor={floor} low={headroomLimits.low} mid={headroomLimits.mid} />
+                <HeadroomLayer
+                  floor={floor}
+                  low={headroomLimits.low}
+                  mid={headroomLimits.mid}
+                  ceilingSlabMm={ceilingSlabMm}
+                />
               )}
-              <WallLayer outlines={outlines} floor={floor} selection={selection} />
+              <WallLayer
+                outlines={outlines}
+                floor={floor}
+                selection={selection}
+                ceilingSlabMm={ceilingSlabMm}
+              />
               <OpeningLayer floor={floor} selectedId={selection?.kind === 'opening' ? selection.id : null} />
               {stairs && (
                 <StairLayer

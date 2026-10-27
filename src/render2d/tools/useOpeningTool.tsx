@@ -65,7 +65,7 @@ export function useOpeningTool(ctx: ToolContext, kind: 'door' | 'window'): ToolH
   let preview: { opening: Opening; invalid: boolean } | null = null;
   if (hover && ctx.floor) {
     const shape = hover.placed ?? { ...spec, wallId: hover.wallId, offset: hover.offset };
-    preview = { opening: { id: 'preview', ...shape } as Opening, invalid: !hover.placed };
+    preview = { opening: { id: 'preview', ...shape }, invalid: !hover.placed };
   }
   const { view } = ctx;
   const overlay = (

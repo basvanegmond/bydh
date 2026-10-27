@@ -12,7 +12,7 @@ export function RoofFromWallsButton() {
         variant="outline"
         size="sm"
         data-testid="roof-from-walls"
-        onClick={() => setEmpty(addRoofFromWalls() === 0)}
+        onClick={() => void addRoofFromWalls().then((n) => setEmpty(n === 0))}
       >
         {t('ceilings.roofFromWalls')}
       </Button>

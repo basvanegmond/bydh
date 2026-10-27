@@ -11,7 +11,7 @@ import { deleteWall, setWallLength, wallLength, wallsAtNode } from '@/domain/mod
 import type { Floor, Room, Underlay, Wall } from '@/domain/schema';
 import { formatArea, formatLength } from '@/domain/units/format';
 import { currentLocale } from '@/i18n';
-import { useProjectStore } from '@/store/projectStore';
+import { useCeilingSlab, useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
 import { ColorField, CommitInput, Field, selectClass } from './fields';
 import { RoofFromWallsButton } from '../ceilings/RoofFromWallsButton';
@@ -19,9 +19,6 @@ import { CeilingPlaneInspector } from './CeilingPlaneInspector';
 import { OpeningInspector } from './OpeningInspector';
 import { StairInspector } from './StairInspector';
 import { cmToMm, mmToCm } from './units';
-
-/** Minimum ceiling height (mm) that counts as usable floor area. */
-const USABLE_HEADROOM_MM = 1800;
 
 const JUSTIFICATIONS = ['center', 'left', 'right'] as const;
 const isJustification = (value: string): value is Wall['justification'] =>
@@ -176,10 +173,13 @@ function RoomInspector({ floor, room }: { floor: Floor; room: Room }) {
   const { t } = useTranslation();
   const editFloor = useProjectStore((s) => s.editFloor);
   const project = useProjectStore((s) => s.project);
+  const usableMm = useViewStore((s) => s.headroomLimits.mid);
+  const cs = useCeilingSlab(floor.id);
+  const unit = project.settings.displayUnit;
   const geometry = floorGeometry(floor).rooms[room.id];
   const area = geometry?.area ?? 0;
   const hasPlanes = Object.keys(floor.ceilingPlanes).length > 0;
-  const usable = geometry && hasPlanes ? usableArea(geometry.polygon, floor, USABLE_HEADROOM_MM) : null;
+  const usable = geometry && hasPlanes ? usableArea(geometry.polygon, floor, usableMm, cs) : null;
   const update = (label: string, change: (r: Room) => void) =>
     editFloor(label, floor.id, (f) => {
       const r = f.rooms[room.id];
@@ -208,7 +208,9 @@ function RoomInspector({ floor, room }: { floor: Floor; room: Room }) {
       </div>
       {usable !== null && (
         <div className="flex justify-between gap-2 text-sm">
-          <span className="text-muted-foreground">{t('ceilings.usableArea')}</span>
+          <span className="text-muted-foreground">
+            {t('ceilings.usableArea', { height: formatLength(usableMm, unit, currentLocale()) })}
+          </span>
           <span className="tabular-nums" data-testid="room-usable-area-value">
             {formatArea(usable, currentLocale())}
           </span>

@@ -5,7 +5,7 @@ import type { CeilingPlane, Floor } from '@/domain/schema';
 import { formatLength } from '@/domain/units/format';
 import { parseSlope } from '@/features/ceilings/slope';
 import { currentLocale } from '@/i18n';
-import { useProjectStore } from '@/store/projectStore';
+import { useCeilingSlab, useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
 import { CommitInput, Field } from './fields';
 import { cmToMmOrZero, mmToCm } from './units';
@@ -16,12 +16,13 @@ export function CeilingPlaneInspector({ floor, plane }: { floor: Floor; plane: C
   const editFloor = useProjectStore((s) => s.editFloor);
   const select = useViewStore((s) => s.select);
   const locale = currentLocale();
+  const cs = useCeilingSlab(floor.id);
   const update = (label: string, change: (p: CeilingPlane) => void) =>
     editFloor(label, floor.id, (f) => {
       const p = f.ceilingPlanes[plane.id];
       if (p) change(p);
     });
-  const reach = distanceToFlatCeiling(plane, floor);
+  const reach = distanceToFlatCeiling(plane, floor, cs);
 
   return (
     <div className="grid gap-3" data-testid="ceiling-plane-inspector">

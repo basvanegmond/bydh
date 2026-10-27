@@ -5,6 +5,8 @@ import { Label } from '@/components/ui/label';
 import { mainBuilding } from '@/domain/model/project';
 import { stairDimensions } from '@/domain/model/stairs';
 import type { Stair } from '@/domain/schema';
+import { formatLength } from '@/domain/units/format';
+import { currentLocale } from '@/i18n';
 import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
 import { CommitInput, Field, selectClass } from './fields';
@@ -14,28 +16,15 @@ const SHAPES = ['straight', 'quarter-turn', 'half-turn'] as const;
 type SupportedShape = (typeof SHAPES)[number];
 const isShape = (v: string): v is SupportedShape => (SHAPES as readonly string[]).includes(v);
 
-interface StairInspectorProps {
-  stair: Stair;
-  /** Floor-to-floor height of the floor the stair starts on, in mm. */
-  floorHeight: number;
-}
+const decimal = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
 
-/** Properties of the selected stair: shape, size, step count and the resulting riser and tread. */
-export function StairInspector({ stair, floorHeight }: StairInspectorProps) {
+type UpdateStair = (label: string, change: (s: Stair) => void) => void;
+
+function ShapeFields({ stair, update }: { stair: Stair; update: UpdateStair }) {
   const { t } = useTranslation();
-  const select = useViewStore((s) => s.select);
-  const update = (label: string, change: (s: Stair) => void) =>
-    useProjectStore.getState().edit(label, (draft) => {
-      const s = mainBuilding(draft)?.stairs[stair.id];
-      if (s) change(s);
-    });
-  const dims = stairDimensions(stair, floorHeight);
-  const decimal = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
   const turns = stair.shape === 'quarter-turn' || stair.shape === 'half-turn';
-
   return (
-    <div className="grid gap-3" data-testid="stair-inspector">
-      <h3 className="text-sm font-semibold">{t('stairs.inspector.title')}</h3>
+    <>
       <Field label={t('stairs.inspector.shape')} htmlFor="stair-shape">
         <select
           id="stair-shape"
@@ -72,6 +61,14 @@ export function StairInspector({ stair, floorHeight }: StairInspectorProps) {
           </select>
         </Field>
       )}
+    </>
+  );
+}
+
+function SizeFields({ stair, update }: { stair: Stair; update: UpdateStair }) {
+  const { t } = useTranslation();
+  return (
+    <>
       <Field label={t('stairs.inspector.width')} htmlFor="stair-width">
         <CommitInput
           key={`${stair.id}-w-${stair.width}`}
@@ -98,6 +95,14 @@ export function StairInspector({ stair, floorHeight }: StairInspectorProps) {
           }}
         />
       </Field>
+    </>
+  );
+}
+
+function StepsAndRotation({ stair, update }: { stair: Stair; update: UpdateStair }) {
+  const { t } = useTranslation();
+  return (
+    <>
       <Field label={t('stairs.inspector.steps')} htmlFor="stair-steps">
         <CommitInput
           key={`${stair.id}-n-${stair.steps}`}
@@ -126,6 +131,62 @@ export function StairInspector({ stair, floorHeight }: StairInspectorProps) {
           }}
         />
       </Field>
+    </>
+  );
+}
+
+function Dimensions({ stair, floorHeight }: { stair: Stair; floorHeight: number }) {
+  const { t } = useTranslation();
+  const unit = useProjectStore((s) => s.project.settings.displayUnit);
+  const dims = stairDimensions(stair, floorHeight);
+  const locale = currentLocale();
+  return (
+    <>
+      <dl className="space-y-1 text-sm">
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">{t('stairs.inspector.riser')}</dt>
+          <dd className="tabular-nums" data-testid="stair-riser">
+            {formatLength(dims.riser, unit, locale)}
+          </dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">{t('stairs.inspector.tread')}</dt>
+          <dd className="tabular-nums" data-testid="stair-tread">
+            {formatLength(dims.tread, unit, locale)}
+          </dd>
+        </div>
+      </dl>
+      {dims.warnings.map((w) => (
+        <p key={w} className="text-xs text-destructive" role="alert" data-testid={`stair-warning-${w}`}>
+          {t(`stairs.warning.${w}`)}
+        </p>
+      ))}
+    </>
+  );
+}
+
+interface StairInspectorProps {
+  stair: Stair;
+  /** Floor-to-floor height of the floor the stair starts on, in mm. */
+  floorHeight: number;
+}
+
+/** Properties of the selected stair: shape, size, step count and the resulting riser and tread. */
+export function StairInspector({ stair, floorHeight }: StairInspectorProps) {
+  const { t } = useTranslation();
+  const select = useViewStore((s) => s.select);
+  const update: UpdateStair = (label, change) =>
+    useProjectStore.getState().edit(label, (draft) => {
+      const s = mainBuilding(draft)?.stairs[stair.id];
+      if (s) change(s);
+    });
+
+  return (
+    <div className="grid gap-3" data-testid="stair-inspector">
+      <h3 className="text-sm font-semibold">{t('stairs.inspector.title')}</h3>
+      <ShapeFields stair={stair} update={update} />
+      <SizeFields stair={stair} update={update} />
+      <StepsAndRotation stair={stair} update={update} />
       <div className="flex items-center gap-2">
         <Checkbox
           id="stair-cuts-void"
@@ -137,25 +198,7 @@ export function StairInspector({ stair, floorHeight }: StairInspectorProps) {
           {t('stairs.inspector.cutsVoid')}
         </Label>
       </div>
-      <dl className="space-y-1 text-sm">
-        <div className="flex justify-between">
-          <dt className="text-muted-foreground">{t('stairs.inspector.riser')}</dt>
-          <dd className="tabular-nums" data-testid="stair-riser">
-            {decimal(dims.riser / 10)} cm
-          </dd>
-        </div>
-        <div className="flex justify-between">
-          <dt className="text-muted-foreground">{t('stairs.inspector.tread')}</dt>
-          <dd className="tabular-nums" data-testid="stair-tread">
-            {decimal(dims.tread / 10)} cm
-          </dd>
-        </div>
-      </dl>
-      {dims.warnings.map((w) => (
-        <p key={w} className="text-xs text-destructive" role="alert" data-testid={`stair-warning-${w}`}>
-          {t(`stairs.warning.${w}`)}
-        </p>
-      ))}
+      <Dimensions stair={stair} floorHeight={floorHeight} />
       <Button
         variant="destructive"
         size="sm"

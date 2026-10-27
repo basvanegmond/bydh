@@ -102,6 +102,26 @@ describe('floor actions', () => {
     expect(Object.keys(floors()[1]!.walls)).toHaveLength(2);
   });
 
+  it('activates the floor below when the active top floor is deleted', async () => {
+    const first = addFloorAt('above')!;
+    const attic = addFloorAt('above')!;
+    expect(useViewStore.getState().activeFloorId).toBe(attic);
+    const pending = deleteFloor(attic);
+    answer(true);
+    await pending;
+    expect(useViewStore.getState().activeFloorId).toBe(first);
+  });
+
+  it('activates the floor above when the active ground floor is deleted', async () => {
+    const ground = floors()[0]!.id;
+    const first = addFloorAt('above')!;
+    useViewStore.setState({ activeFloorId: ground });
+    const pending = deleteFloor(ground);
+    answer(true);
+    await pending;
+    expect(useViewStore.getState().activeFloorId).toBe(first);
+  });
+
   it('does nothing when the confirmation is cancelled, and never deletes the last floor', async () => {
     const upper = addFloorAt('above')!;
     const pending = deleteFloor(upper);

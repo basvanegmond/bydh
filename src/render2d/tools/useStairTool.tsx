@@ -19,7 +19,12 @@ export function useStairTool(ctx: ToolContext): ToolHandlers {
     const building = mainBuilding(s.project);
     return !!(building && ctx.floorId && floorAbove(building, ctx.floorId));
   });
-  const [anchor, setAnchor] = useState<Vec2 | null>(null);
+  const tool = useViewStore((s) => s.tool);
+  // A pending anchor belongs to one floor and one tool session: it is ignored once either changes.
+  const session = `${ctx.floorId}|${tool}`;
+  const [pending, setPending] = useState<{ session: string; anchor: Vec2 | null }>({ session, anchor: null });
+  const anchor = pending.session === session ? pending.anchor : null;
+  const setAnchor = (next: Vec2 | null) => setPending({ session, anchor: next });
   const [hover, setHover] = useState<Vec2 | null>(null);
   const [shift, setShift] = useState(false);
 

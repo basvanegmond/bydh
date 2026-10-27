@@ -232,7 +232,9 @@
     "slope": "Slope (degrees)",
     "roofFromWalls": "Roof from walls",
     "roofFromWallsEmpty": "No closed outer walls with a facing pair were found, so no roof was added.",
-    "usableArea": "Area with at least 1.8 m headroom",
+    "usableArea": "Area with at least {{height}} headroom",
+    "replaceRoofTitle": "Replace the existing roof?",
+    "replaceRoofMessage": "This floor already has {{count}} ceiling plane(s). Adding a roof from the walls replaces them.",
     "openingTooTall": "This opening is taller than the ceiling at its position ({{ceiling}} cm).",
     "hint": {
       "first": "Click the first point of the eave line. Esc stops.",
@@ -243,7 +245,9 @@
       "title": "New ceiling plane"
     },
     "headroom": {
-      "toggle": "Show headroom"
+      "toggle": "Show headroom",
+      "low": "Unusable below (cm)",
+      "mid": "Usable from (cm)"
     },
     "inspector": {
       "title": "Ceiling plane",
@@ -274,6 +278,8 @@
     "copyName": "{{name}} (copy from this tab)"
   },
   "stairs": {
+    "up": "UP",
+    "down": "DN",
     "tool": "Place stair (S)",
     "hint": {
       "start": "Click where the bottom step goes. Esc stops.",

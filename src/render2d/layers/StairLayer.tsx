@@ -1,4 +1,5 @@
 import { memo, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { normalize, sub } from '@/domain/geometry/vec2';
 import { stairGeometry } from '@/domain/model/stairs';
 import type { Id, Stair, Vec2 } from '@/domain/schema';
@@ -26,6 +27,7 @@ interface StairSymbolProps {
 }
 
 const StairSymbol = memo(function StairSymbol({ stair, direction, selected }: StairSymbolProps) {
+  const { t } = useTranslation();
   const geo = useMemo(() => stairGeometry(stair), [stair]);
   const up = direction === 'up';
   const stroke = selected ? 'var(--plan-selection)' : 'var(--plan-wall-edge)';
@@ -86,7 +88,7 @@ const StairSymbol = memo(function StairSymbol({ stair, direction, selected }: St
         data-testid={`stair-label-${stair.id}`}
         style={{ userSelect: 'none' }}
       >
-        {up ? 'UP' : 'DN'}
+        {up ? t('stairs.up') : t('stairs.down')}
       </text>
     </g>
   );

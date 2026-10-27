@@ -79,12 +79,14 @@ export async function deleteFloor(floorId: Id): Promise<boolean> {
   if (!floor || floors.length < 2) return false;
   if (!(await confirmAction(t('floors.deleteTitle'), deleteMessage(floor, project)))) return false;
   const index = floors.indexOf(floor);
-  const neighbour = floors[index + 1] ?? floors[index - 1];
+  const neighbour = floors[index - 1] ?? floors[index + 1];
+  // The store re-validates the active floor as soon as the project changes (falling back to the
+  // ground floor), so the neighbour has to become active before the edit.
+  const view = useViewStore.getState();
+  if (view.activeFloorId === floorId && neighbour) view.setActiveFloor(neighbour.id);
   useProjectStore.getState().edit('Delete floor', (p) => {
     const building = mainBuilding(p);
     if (building) removeFloor(building, floorId);
   });
-  const view = useViewStore.getState();
-  if (view.activeFloorId === floorId && neighbour) view.setActiveFloor(neighbour.id);
   return true;
 }

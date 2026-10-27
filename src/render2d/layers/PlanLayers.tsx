@@ -104,10 +104,12 @@ export const WallLayer = memo(function WallLayer({
   outlines,
   floor,
   selection,
+  ceilingSlabMm,
 }: {
   outlines: Record<Id, WallOutline>;
   floor: Floor;
   selection: Selection;
+  ceilingSlabMm?: number | undefined;
 }) {
   const hosts = new Set(Object.values(floor.openings).map((o) => o.wallId));
   return (
@@ -131,7 +133,7 @@ export const WallLayer = memo(function WallLayer({
         // Walls with openings are drawn as their solid pieces so the openings show as gaps.
         return (
           <g key={outline.wallId} {...attrs}>
-            {wallPlanPolygons(floor, wall, outline).map((quad, i) => (
+            {wallPlanPolygons(floor, wall, outline, ceilingSlabMm).map((quad, i) => (
               <polygon key={i} points={pointsAttr(quad)} {...common} />
             ))}
           </g>

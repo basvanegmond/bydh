@@ -232,7 +232,9 @@
     "slope": "Helling (graden)",
     "roofFromWalls": "Dak vanuit muren",
     "roofFromWallsEmpty": "Geen gesloten buitenmuren met een tegenover elkaar liggend paar gevonden, dus er is geen dak toegevoegd.",
-    "usableArea": "Oppervlak met minstens 1,8 m hoofdruimte",
+    "usableArea": "Oppervlak met minstens {{height}} hoofdruimte",
+    "replaceRoofTitle": "Bestaand dak vervangen?",
+    "replaceRoofMessage": "Deze verdieping heeft al {{count}} plafondvlak(ken). Een dak vanuit de muren vervangt ze.",
     "openingTooTall": "Deze opening is hoger dan het plafond op die plek ({{ceiling}} cm).",
     "hint": {
       "first": "Klik op het eerste punt van de dakvoet. Esc stopt.",
@@ -243,7 +245,9 @@
       "title": "Nieuw plafondvlak"
     },
     "headroom": {
-      "toggle": "Hoofdruimte tonen"
+      "toggle": "Hoofdruimte tonen",
+      "low": "Onbruikbaar onder (cm)",
+      "mid": "Bruikbaar vanaf (cm)"
     },
     "inspector": {
       "title": "Plafondvlak",
@@ -274,6 +278,8 @@
     "copyName": "{{name}} (kopie uit dit tabblad)"
   },
   "stairs": {
+    "up": "OP",
+    "down": "AF",
     "tool": "Trap plaatsen (S)",
     "hint": {
       "start": "Klik waar de onderste trede komt. Esc stopt.",

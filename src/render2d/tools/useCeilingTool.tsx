@@ -17,7 +17,12 @@ export function useCeilingTool(ctx: ToolContext): ToolHandlers {
   const editFloor = useProjectStore((s) => s.editFloor);
   const select = useViewStore((s) => s.select);
   const defaults = useViewStore((s) => s.ceilingDefaults);
-  const [points, setPoints] = useState<Vec2[]>([]);
+  const tool = useViewStore((s) => s.tool);
+  // Half-traced eave points belong to one floor and one tool session: they are ignored once either changes.
+  const session = `${ctx.floorId}|${tool}`;
+  const [pending, setPending] = useState<{ session: string; points: Vec2[] }>({ session, points: [] });
+  const points = pending.session === session ? pending.points : [];
+  const setPoints = (next: Vec2[]) => setPending({ session, points: next });
   const [hover, setHover] = useState<{ point: Vec2; kind: string } | null>(null);
 
   const snap = (p: Vec2) => {

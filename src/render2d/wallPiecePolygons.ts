@@ -12,7 +12,12 @@ type Quad = [Vec2, Vec2, Vec2, Vec2];
  * Pieces below a sill or above a head are not drawn: in plan the opening shows as a gap.
  * A piece touching a wall end reuses the mitred outline corners, so joins stay exact.
  */
-export function wallPlanPolygons(floor: Floor, wall: Wall, outline: WallOutline): Quad[] {
+export function wallPlanPolygons(
+  floor: Floor,
+  wall: Wall,
+  outline: WallOutline,
+  ceilingSlabMm?: number,
+): Quad[] {
   const length = wallLength(floor, wall);
   const { a, b } = wallEnds(floor, wall);
   const dir = normalize(sub(b, a));
@@ -20,7 +25,7 @@ export function wallPlanPolygons(floor: Floor, wall: Wall, outline: WallOutline)
   const ext = wallExtents(wall);
   const at = (along: number, side: number): Vec2 => add(add(a, scale(dir, along)), scale(left, side));
   const EPS = 0.01;
-  return wallPieces(floor, wall)
+  return wallPieces(floor, wall, undefined, undefined, ceilingSlabMm)
     .filter((p) => p.kind === 'full')
     .map((p): Quad => {
       const atStart = p.x0 <= EPS;

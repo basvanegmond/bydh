@@ -67,6 +67,8 @@ interface ViewState {
   toggleDimensions: () => void;
   setOpeningDefault: (kind: 'door' | 'window', change: Partial<OpeningSize>) => void;
   setCeilingDefault: (change: Partial<CeilingDefaults>) => void;
+  /** Sets the headroom band limits; ignored unless 0 <= low <= mid after the change. */
+  setHeadroomLimits: (change: Partial<HeadroomLimits>) => void;
   toggleHeadroom: () => void;
   toggleGhostFloor: () => void;
   setStackMode: (mode: StackMode) => void;
@@ -103,6 +105,11 @@ export const useViewStore = create<ViewState>()(
         })),
       setCeilingDefault: (change) =>
         set((state) => ({ ceilingDefaults: { ...state.ceilingDefaults, ...change } })),
+      setHeadroomLimits: (change) =>
+        set((state) => {
+          const next = { ...state.headroomLimits, ...change };
+          return next.low >= 0 && next.low <= next.mid ? { headroomLimits: next } : {};
+        }),
       toggleHeadroom: () => set((state) => ({ showHeadroom: !state.showHeadroom })),
       toggleGhostFloor: () => set((state) => ({ ghostFloor: !state.ghostFloor })),
       setStackMode: (stackMode) => set({ stackMode }),

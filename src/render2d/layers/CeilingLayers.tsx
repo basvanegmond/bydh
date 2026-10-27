@@ -15,14 +15,16 @@ export const HeadroomLayer = memo(function HeadroomLayer({
   floor,
   low,
   mid,
+  ceilingSlabMm,
 }: {
   floor: Floor;
   low: number;
   mid: number;
+  ceilingSlabMm?: number | undefined;
 }) {
   const bands = useMemo(
-    () => ({ mid: headroomAreas(floor, mid), low: headroomAreas(floor, low) }),
-    [floor, low, mid],
+    () => ({ mid: headroomAreas(floor, mid, ceilingSlabMm), low: headroomAreas(floor, low, ceilingSlabMm) }),
+    [floor, low, mid, ceilingSlabMm],
   );
   return (
     <g data-layer="headroom" pointerEvents="none">

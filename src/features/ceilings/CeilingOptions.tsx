@@ -10,6 +10,8 @@ export function CeilingOptions() {
   const { t } = useTranslation();
   const defaults = useViewStore((s) => s.ceilingDefaults);
   const setDefault = useViewStore((s) => s.setCeilingDefault);
+  const limits = useViewStore((s) => s.headroomLimits);
+  const setLimits = useViewStore((s) => s.setHeadroomLimits);
   return (
     <div
       className="absolute bottom-12 left-1/2 flex -translate-x-1/2 items-end gap-2 rounded-md bg-background/95 px-2 py-1 text-xs shadow ring-1 ring-border"
@@ -46,6 +48,23 @@ export function CeilingOptions() {
           />
         </Field>
       </div>
+      {(['low', 'mid'] as const).map((key) => (
+        <div key={key} className="w-24">
+          <Field label={t(`ceilings.headroom.${key}`)} htmlFor={`headroom-${key}`}>
+            <CommitInput
+              key={`${key}-${limits[key]}`}
+              id={`headroom-${key}`}
+              inputMode="decimal"
+              value={mmToCm(limits[key])}
+              testId={`headroom-${key}`}
+              onCommit={(v) => {
+                const mm = cmToMmOrZero(v);
+                if (mm !== null) setLimits({ [key]: mm });
+              }}
+            />
+          </Field>
+        </div>
+      ))}
       <RoofFromWallsButton />
     </div>
   );
