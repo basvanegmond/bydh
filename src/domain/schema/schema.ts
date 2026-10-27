@@ -195,7 +195,11 @@ export const RoomSchema = z.object({
 export const UnderlaySchema = z.object({
   ...entityBase,
   assetId: id,
+  /** Page number when the image was rendered from a PDF. */
   pdfPage: z.number().int().positive().optional(),
+  /** Natural size of the image in pixels. */
+  imagePx: z.object({ w: z.number().positive(), h: z.number().positive() }),
+  /** Plan position of the image's top-left corner. */
   position: Vec2Schema,
   rotationDeg: deg,
   /** From two-point calibration. */
