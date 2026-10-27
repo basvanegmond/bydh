@@ -7,6 +7,7 @@ user-invocable: true
 Perform a systematic security audit.
 
 ## Audit scope
+
 - Authentication & authorisation
 - Input validation & sanitisation
 - Secret & credential handling
@@ -15,6 +16,7 @@ Perform a systematic security audit.
 - Injection vulnerabilities (SQL, XSS, path traversal)
 
 ## Findings format
+
 ```
 [SEVERITY] Title
 File: path/to/file.ts:line
@@ -22,4 +24,5 @@ Issue: What the vulnerability is
 Impact: What an attacker could do
 Fix: Specific remediation steps
 ```
+
 Severity levels: CRITICAL / HIGH / MEDIUM / LOW / INFO
