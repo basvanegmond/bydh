@@ -1,48 +1,28 @@
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { DEFAULT_WALL_COLOR, FLOOR_MATERIALS, findMaterial, floorFinishFor } from '@/data/materials';
-import { findFloor, resolveFloor } from '@/domain/model/project';
+import { usableArea } from '@/domain/model/ceilings';
+import { findFloor, mainBuilding, resolveFloor } from '@/domain/model/project';
 import { floorGeometry } from '@/domain/model/floorGeometry';
 import { deleteWall, setWallLength, wallLength, wallsAtNode } from '@/domain/model/walls';
 import type { Floor, Room, Underlay, Wall } from '@/domain/schema';
 import { formatArea, formatLength } from '@/domain/units/format';
 import { currentLocale } from '@/i18n';
-import { useProjectStore } from '@/store/projectStore';
+import { useCeilingSlab, useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
-import { CommitInput, Field } from './fields';
+import { ColorField, CommitInput, Field, selectClass } from './fields';
+import { RoofFromWallsButton } from '../ceilings/RoofFromWallsButton';
+import { CeilingPlaneInspector } from './CeilingPlaneInspector';
+import { OpeningInspector } from './OpeningInspector';
+import { StairInspector } from './StairInspector';
 import { cmToMm, mmToCm } from './units';
 
 const JUSTIFICATIONS = ['center', 'left', 'right'] as const;
 const isJustification = (value: string): value is Wall['justification'] =>
   (JUSTIFICATIONS as readonly string[]).includes(value);
-
-/** Colour picker whose whole drag is one undo step and does not re-run room detection. */
-function ColorField({ id, value, onLive }: { id: string; value: string; onLive: (color: string) => void }) {
-  const finish = () => useProjectStore.getState().commitTransaction();
-  // Never leave the transaction open if the field disappears mid-pick (selection change).
-  useEffect(() => finish, []);
-  return (
-    <input
-      id={id}
-      type="color"
-      value={value}
-      className="h-8 w-full cursor-pointer rounded-md border border-input bg-transparent"
-      onChange={(e) => {
-        const store = useProjectStore.getState();
-        if (!store.transaction) store.beginTransaction('Paint wall');
-        onLive(e.target.value);
-      }}
-      onBlur={finish}
-    />
-  );
-}
-
-const selectClass =
-  'h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm shadow-xs focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50';
 
 function LockToggle({
   id,
@@ -193,7 +173,13 @@ function RoomInspector({ floor, room }: { floor: Floor; room: Room }) {
   const { t } = useTranslation();
   const editFloor = useProjectStore((s) => s.editFloor);
   const project = useProjectStore((s) => s.project);
-  const area = floorGeometry(floor).rooms[room.id]?.area ?? 0;
+  const usableMm = useViewStore((s) => s.headroomLimits.mid);
+  const cs = useCeilingSlab(floor.id);
+  const unit = project.settings.displayUnit;
+  const geometry = floorGeometry(floor).rooms[room.id];
+  const area = geometry?.area ?? 0;
+  const hasPlanes = Object.keys(floor.ceilingPlanes).length > 0;
+  const usable = geometry && hasPlanes ? usableArea(geometry.polygon, floor, usableMm, cs) : null;
   const update = (label: string, change: (r: Room) => void) =>
     editFloor(label, floor.id, (f) => {
       const r = f.rooms[room.id];
@@ -220,6 +206,16 @@ function RoomInspector({ floor, room }: { floor: Floor; room: Room }) {
           {formatArea(area, currentLocale())}
         </span>
       </div>
+      {usable !== null && (
+        <div className="flex justify-between gap-2 text-sm">
+          <span className="text-muted-foreground">
+            {t('ceilings.usableArea', { height: formatLength(usableMm, unit, currentLocale()) })}
+          </span>
+          <span className="tabular-nums" data-testid="room-usable-area-value">
+            {formatArea(usable, currentLocale())}
+          </span>
+        </div>
+      )}
       <Field label={t('inspector.room.floorMaterial')} htmlFor="room-floor">
         <div className="flex items-center gap-2">
           <span className="size-6 shrink-0 rounded border" style={{ background: material?.color }} />
@@ -339,6 +335,10 @@ export function Inspector() {
   const wall = selection?.kind === 'wall' ? floor?.walls[selection.id] : undefined;
   const room = selection?.kind === 'room' ? floor?.rooms[selection.id] : undefined;
   const underlay = selection?.kind === 'underlay' ? floor?.underlays[selection.id] : undefined;
+  const opening = selection?.kind === 'opening' ? floor?.openings[selection.id] : undefined;
+  const plane = selection?.kind === 'ceilingPlane' ? floor?.ceilingPlanes[selection.id] : undefined;
+  const stair = selection?.kind === 'stair' ? mainBuilding(project)?.stairs[selection.id] : undefined;
+  const stairFloor = stair ? findFloor(project, stair.fromFloorId) : undefined;
 
   return (
     <aside
@@ -349,7 +349,10 @@ export function Inspector() {
       {floor && wall && <WallInspector key={wall.id} floor={floor} wall={wall} />}
       {floor && room && <RoomInspector key={room.id} floor={floor} room={room} />}
       {floor && underlay && <UnderlayInspector key={underlay.id} floor={floor} underlay={underlay} />}
-      {!wall && !room && !underlay && (
+      {floor && opening && <OpeningInspector key={opening.id} floor={floor} opening={opening} />}
+      {floor && plane && <CeilingPlaneInspector key={plane.id} floor={floor} plane={plane} />}
+      {stair && stairFloor && <StairInspector key={stair.id} stair={stair} floorHeight={stairFloor.height} />}
+      {!wall && !room && !underlay && !opening && !stair && !plane && (
         <>
           <div>
             <p className="text-sm">{t('inspector.nothingSelected')}</p>
@@ -359,6 +362,7 @@ export function Inspector() {
             <Stat label={t('inspector.walls')} value={Object.keys(floor?.walls ?? {}).length} />
             <Stat label={t('inspector.rooms')} value={Object.keys(floor?.rooms ?? {}).length} />
           </dl>
+          {floor && <RoofFromWallsButton />}
         </>
       )}
     </aside>

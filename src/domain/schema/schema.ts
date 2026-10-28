@@ -1,13 +1,14 @@
 import { z } from 'zod';
 
 /**
- * Scene graph, schema version 2 (v2: floor elevation is derived, see floorElevations()).
+ * Scene graph, schema version 3 (v2: floor elevation is derived, see floorElevations(); v3: sloped
+ * ceiling planes on floors).
  * Zod schemas are the source of truth; TypeScript types are inferred.
  * Plan space: +X = east, +Y = north, millimetres, degrees counter-clockwise from +X.
  * three.js mapping: x = X/1000, y = elevation/1000, z = -Y/1000 (metres, Y-up).
  * Derived data (wall outlines, room polygons and areas, slab voids) is never stored.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const id = z.string().min(1);
 const mm = z.number().finite();
@@ -217,6 +218,37 @@ export const DimensionLineSchema = z.object({ ...entityBase, a: Vec2Schema, b: V
 
 export const FloorLevelSchema = z.enum(['basement', 'ground', 'first', 'second', 'attic', 'roof']);
 
+/**
+ * A sloped ceiling plane (attic roof slope). Planes are the design; ceiling heights, headroom areas
+ * and clipped wall tops are derived (see model/ceilings.ts). Heights are measured from the finished
+ * floor level of the floor that owns the plane.
+ */
+export const CeilingPlaneSchema = z
+  .object({
+    ...entityBase,
+    /** Eave line in plan space, where the slope meets the knee wall. */
+    eave: z.object({ a: Vec2Schema, b: Vec2Schema }),
+    /** Ceiling height at the eave line (knee-wall height), from the floor level. */
+    kneeHeight: mm.nonnegative(),
+    /** Slope angle above horizontal, in degrees: greater than 0 and less than 90. */
+    slopeDeg: deg.gt(0).lt(90),
+    /** Side of the eave line a -> b the plane rises towards, as seen walking from a to b. */
+    risesToward: z.enum(['left', 'right']),
+    /**
+     * Optional plan polygon limiting where the plane applies (convex, for headroom clipping).
+     * Absent: the plane covers the whole floor footprint on its rising side.
+     */
+    extent: PolygonSchema.optional(),
+  })
+  .superRefine((plane, ctx) => {
+    if (plane.eave.a.x === plane.eave.b.x && plane.eave.a.y === plane.eave.b.y)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['eave'],
+        message: 'The eave line needs two distinct points',
+      });
+  });
+
 const FloorShape = z.object({
   ...entityBase,
   level: FloorLevelSchema,
@@ -234,6 +266,8 @@ const FloorShape = z.object({
   plants: record(PlantInstanceSchema),
   underlays: record(UnderlaySchema),
   dimensions: record(DimensionLineSchema),
+  /** Sloped ceiling planes (v3); empty means a flat ceiling at height - slabThickness. */
+  ceilingPlanes: record(CeilingPlaneSchema).default({}),
 });
 
 export const FloorSchema = FloorShape.superRefine((floor, ctx) => {

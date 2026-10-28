@@ -1,4 +1,4 @@
-import { Box, ChevronDown, Columns2, Languages, Redo2, Square, Undo2 } from 'lucide-react';
+import { Box, ChevronDown, Columns2, Languages, Layers, Redo2, Square, Undo2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
+import { Toggle } from '@/components/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { orderedFloors, resolveFloor } from '@/domain/model/project';
 import { currentLocale, setLocale } from '@/i18n';
@@ -20,6 +21,8 @@ import { openProject, usePersistence } from '@/storage/session';
 import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
 import { isViewMode } from '@/store/viewStore';
+import { FloorsPanel } from '../floors/FloorsPanel';
+import { setFloorsPanelOpen } from '../floors/floorsPanelStore';
 import { openImportDialog } from '../project/importStore';
 import {
   deleteCurrentProject,
@@ -130,21 +133,45 @@ function FloorSwitcher() {
   const floors = orderedFloors(project);
   const current = resolveFloor(project, activeFloorId);
   const label = (floor: (typeof floors)[number]) => floor.name ?? t(`floor.level.${floor.level}`);
+  const ghostFloor = useViewStore((s) => s.ghostFloor);
+  const toggleGhostFloor = useViewStore((s) => s.toggleGhostFloor);
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" aria-label={t('floor.label')} data-testid="floor-switcher">
-          {current ? label(current) : t('floor.label')}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent>
-        {[...floors].reverse().map((floor) => (
-          <DropdownMenuItem key={floor.id} onSelect={() => setActiveFloor(floor.id)}>
-            {label(floor)}
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" aria-label={t('floor.label')} data-testid="floor-switcher">
+            {current ? label(current) : t('floor.label')}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          {[...floors].reverse().map((floor) => (
+            <DropdownMenuItem
+              key={floor.id}
+              onSelect={() => setActiveFloor(floor.id)}
+              data-testid="floor-option"
+            >
+              {label(floor)}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setFloorsPanelOpen(true)} data-testid="floors-manage">
+            {t('floors.manage')}
           </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Toggle
+        size="sm"
+        variant="outline"
+        pressed={ghostFloor}
+        onPressedChange={toggleGhostFloor}
+        aria-label={t('floors.ghost')}
+        title={t('floors.ghostHint')}
+        data-testid="ghost-toggle"
+      >
+        <Layers />
+      </Toggle>
+      <FloorsPanel />
+    </>
   );
 }
 

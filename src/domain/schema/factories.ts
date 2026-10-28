@@ -33,6 +33,7 @@ export function createFloor(level: FloorLevel, name?: string): Floor {
     plants: {},
     underlays: {},
     dimensions: {},
+    ceilingPlanes: {},
   };
 }
 

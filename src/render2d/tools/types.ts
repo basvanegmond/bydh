@@ -5,6 +5,8 @@ import type { Viewport } from '../viewport';
 export interface ToolContext {
   view: Viewport;
   floor: Floor | undefined;
+  /** The floor below when the ghost is on: its nodes and walls are extra snap targets. */
+  ghostFloor?: Floor | undefined;
   floorId: Id | null;
   /** Snap/capture radius in plan mm at the current zoom. */
   toleranceMm: number;

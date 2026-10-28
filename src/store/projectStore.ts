@@ -2,6 +2,7 @@ import { enablePatches, applyPatches, current, produceWithPatches } from 'immer'
 import { create } from 'zustand';
 import { emptyHistory, merge, record, takeRedo, takeUndo } from '@/domain/history/history';
 import type { History, HistoryEntry } from '@/domain/history/history';
+import { ceilingSlabThickness } from '@/domain/model/floors';
 import { normalizeFloor } from '@/domain/model/normalize';
 import { activeVariant, findFloor, mainBuilding, orderedFloors } from '@/domain/model/project';
 import { syncRooms } from '@/domain/model/rooms';
@@ -118,6 +119,13 @@ export const useProjectStore = create<ProjectState>()((set, get) => ({
 
 export const selectActiveVariant = (state: { project: Project }): Variant | undefined =>
   activeVariant(state.project);
+
+/** Thickness (mm) of the slab above a floor, which lowers its flat ceiling; undefined without a building. */
+export const useCeilingSlab = (floorId: Id | null): number | undefined =>
+  useProjectStore((s) => {
+    const building = mainBuilding(s.project);
+    return building && floorId ? ceilingSlabThickness(building, floorId) : undefined;
+  });
 
 export const selectMainBuilding = (state: { project: Project }): Building | undefined =>
   mainBuilding(state.project);

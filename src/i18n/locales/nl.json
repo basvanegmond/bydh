@@ -51,6 +51,24 @@
       "roof": "Dak"
     }
   },
+  "floors": {
+    "manage": "Verdiepingen beheren…",
+    "title": "Verdiepingen",
+    "description": "Verdiepingen van boven naar beneden. Een andere hoogte verplaatst de verdiepingen erboven.",
+    "addAbove": "Verdieping erboven toevoegen",
+    "addBelow": "Verdieping eronder toevoegen",
+    "copyWalls": "Muren van de verdieping eronder kopiëren",
+    "name": "Naam",
+    "height": "Hoogte",
+    "show": "Tonen",
+    "active": "Getoond",
+    "delete": "Verdieping verwijderen",
+    "lastFloor": "De laatste verdieping kan niet worden verwijderd",
+    "deleteTitle": "Verdieping verwijderen",
+    "deleteConfirm": "\"{{name}}\" verwijderen? Hiermee verdwijnen ook {{walls}} muur/muren, {{rooms}} ruimte(s), {{openings}} opening(en), {{objects}} object(en) en {{stairs}} trap(pen).",
+    "ghost": "Spookverdieping",
+    "ghostHint": "Toon de verdieping eronder vaag en snap op de muren ervan"
+  },
   "project": {
     "label": "Project",
     "menu": "Projectmenu",
@@ -155,6 +173,94 @@
     "loading": "3D-weergave laden…",
     "error": "De 3D-weergave kon niet starten. Mogelijk staat WebGL uit in je browser."
   },
+  "view3d": {
+    "cutaway": "Muren doorsnijden",
+    "insideView": "Binnenzicht",
+    "resetView": "Weergave herstellen",
+    "toolsLabel": "3D-camera",
+    "stackLabel": "Verdiepingen in 3D",
+    "stack": {
+      "all": "Alle verdiepingen",
+      "upTo": "Tot actieve verdieping",
+      "active": "Alleen actieve verdieping"
+    }
+  },
+  "openings": {
+    "tool": {
+      "door": "Deur plaatsen (D)",
+      "window": "Raam plaatsen (N)"
+    },
+    "hint": {
+      "door": "Ga langs een muur en klik om een deur te plaatsen. Rood betekent dat het niet past. Esc stopt.",
+      "window": "Ga langs een muur en klik om een raam te plaatsen. Rood betekent dat het niet past. Esc stopt."
+    },
+    "defaults": {
+      "door": "Nieuwe deur",
+      "window": "Nieuw raam",
+      "width": "Breedte (cm)",
+      "height": "Hoogte (cm)",
+      "sill": "Dorpel (cm)"
+    },
+    "inspector": {
+      "door": "Deur",
+      "window": "Raam",
+      "width": "Breedte (cm)",
+      "height": "Hoogte (cm)",
+      "sill": "Borstweringhoogte (cm)",
+      "operation": "Type",
+      "hinge": "Scharnier: {{side}}",
+      "opensTo": "Draait naar: {{side}}",
+      "frameColor": "Kozijnkleur",
+      "wallLocked": "De muur is vergrendeld, dus deze opening kan niet gewijzigd worden.",
+      "doesNotFit": "Die breedte past niet op de muur."
+    },
+    "side": {
+      "left": "links",
+      "right": "rechts"
+    },
+    "operation": {
+      "swing": "Draaideur",
+      "double-swing": "Dubbele draaideur",
+      "sliding": "Schuifdeur",
+      "pocket": "Inschuifdeur",
+      "doorway": "Doorgang",
+      "fixed": "Vast",
+      "tilt-turn": "Draai-kiep",
+      "casement": "Draairaam",
+      "top-hung": "Valraam"
+    }
+  },
+  "ceilings": {
+    "tool": "Plafondvlak (R)",
+    "kneeHeight": "Hoogte knieschot (cm)",
+    "slope": "Helling (graden)",
+    "roofFromWalls": "Dak vanuit muren",
+    "roofFromWallsEmpty": "Geen gesloten buitenmuren met een tegenover elkaar liggend paar gevonden, dus er is geen dak toegevoegd.",
+    "usableArea": "Oppervlak met minstens {{height}} hoofdruimte",
+    "replaceRoofTitle": "Bestaand dak vervangen?",
+    "replaceRoofMessage": "Deze verdieping heeft al {{count}} plafondvlak(ken). Een dak vanuit de muren vervangt ze.",
+    "openingTooTall": "Deze opening is hoger dan het plafond op die plek ({{ceiling}} cm).",
+    "hint": {
+      "first": "Klik op het eerste punt van de dakvoet. Esc stopt.",
+      "second": "Klik op het tweede punt van de dakvoet.",
+      "side": "Klik aan de kant waar het plafond oploopt. Esc annuleert."
+    },
+    "defaults": {
+      "title": "Nieuw plafondvlak"
+    },
+    "headroom": {
+      "toggle": "Hoofdruimte tonen",
+      "low": "Onbruikbaar onder (cm)",
+      "mid": "Bruikbaar vanaf (cm)"
+    },
+    "inspector": {
+      "title": "Plafondvlak",
+      "rises": "Loopt op naar {{side}}",
+      "eaveHeight": "Plafondhoogte bij dakvoet",
+      "reach": "Afstand tot vlak plafond",
+      "noReach": "Niet bereikt"
+    }
+  },
   "language": {
     "label": "Taal",
     "en": "English",
@@ -174,5 +280,40 @@
     "keepMine": "Mijn versie behouden (overschrijven)",
     "saveCopy": "Mijn versie opslaan als kopie",
     "copyName": "{{name}} (kopie uit dit tabblad)"
+  },
+  "stairs": {
+    "up": "OP",
+    "down": "AF",
+    "tool": "Trap plaatsen (S)",
+    "hint": {
+      "start": "Klik waar de onderste trede komt. Esc stopt.",
+      "direction": "Klik om de richting van de trap te bepalen. Shift rondt af op 15°. Esc annuleert.",
+      "noFloorAbove": "Voeg eerst een verdieping erboven toe: een trap heeft een verdieping nodig om naartoe te gaan."
+    },
+    "shape": {
+      "straight": "Recht",
+      "quarter-turn": "Kwartslag",
+      "half-turn": "Halve slag"
+    },
+    "turn": {
+      "left": "Draait naar links",
+      "right": "Draait naar rechts"
+    },
+    "inspector": {
+      "title": "Trap",
+      "shape": "Vorm",
+      "turn": "Draairichting",
+      "width": "Breedte (cm)",
+      "runLength": "Looplengte (cm)",
+      "steps": "Aantal treden",
+      "rotation": "Richting (°)",
+      "cutsVoid": "Gat in de vloer erboven",
+      "riser": "Optrede",
+      "tread": "Aantrede"
+    },
+    "warning": {
+      "riser-too-high": "Een optrede boven 20 cm is steil. Voeg treden toe.",
+      "tread-too-short": "Een aantrede onder 22 cm is te krap. Verleng de trap of gebruik minder treden."
+    }
   }
 }

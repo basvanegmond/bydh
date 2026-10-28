@@ -1,86 +1,86 @@
-import { useEffect, useMemo } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { Canvas } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { Grid, OrbitControls } from '@react-three/drei';
-import { DoubleSide } from 'three';
 import { useTranslation } from 'react-i18next';
 import { DEFAULT_WALL_COLOR, findMaterial } from '@/data/materials';
-import { boundingBox } from '@/domain/geometry/polygon';
 import { floorGeometry } from '@/domain/model/floorGeometry';
-import { mainBuilding, orderedFloors } from '@/domain/model/project';
-import type { WallOutline } from '@/domain/model/outlines';
-import type { RoomGeometry } from '@/domain/model/rooms';
-import { floorElevation } from '@/domain/schema';
-import type { Floor, Project } from '@/domain/schema';
+import { ceilingSlabThickness } from '@/domain/model/floors';
+import { mainBuilding, orderedFloors, resolveFloor } from '@/domain/model/project';
+import { floorSlabs } from '@/domain/model/slabs';
+import { stairGeometry } from '@/domain/model/stairs';
+import { wallEnds } from '@/domain/model/walls';
+import { floorElevations } from '@/domain/schema';
+import type { Building, Floor, Project, Stair } from '@/domain/schema';
 import { useProjectStore } from '@/store/projectStore';
 import { useViewStore } from '@/store/viewStore';
 import type { Selection } from '@/store/viewStore';
-import { roomFloorGeometry, wallGeometry } from './geometry';
+import { CeilingMesh, OpeningMesh, RoomFloor, SlabMesh, StepMesh, WallMesh } from './FloorParts';
+import { cutScale, floorBox } from './camera';
+import { CameraRig, CutawayDriver } from './CameraRig';
+import type { CutWall } from './CameraRig';
+import { ceilingPlanePieces } from './geometry';
+import { visibleFloorIds } from './stack';
 
 const CAP_COLOR = '#e6e1d8';
+const SLAB_COLOR = '#c9c4ba';
+const STAIR_COLOR = '#b9a88d';
 const SELECTED = '#3b82f6';
 
-function RoomFloor({
-  room,
-  elevation,
-  color,
-  onPick,
-}: {
-  room: RoomGeometry;
-  elevation: number;
-  color: string;
-  onPick: (e: ThreeEvent<MouseEvent>) => void;
-}) {
-  const geometry = useMemo(() => roomFloorGeometry(room), [room]);
-  // Free GPU buffers when the geometry is replaced or unmounted.
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  return (
-    <mesh
-      geometry={geometry}
-      rotation-x={-Math.PI / 2}
-      position-y={elevation / 1000 + 0.003}
-      receiveShadow
-      onClick={onPick}
-    >
-      <meshStandardMaterial color={color} roughness={0.85} />
-    </mesh>
-  );
-}
-
-function WallMesh({
-  outline,
+/** Squashes its children about the floor level so a cut wall's top sits near the cut height. */
+function CutGroup({
   base,
-  height,
-  colors,
-  onPick,
+  cut,
+  floorHeightMm,
+  children,
 }: {
-  outline: WallOutline;
   base: number;
-  height: number;
-  colors: [string, string, string];
-  onPick: (e: ThreeEvent<MouseEvent>) => void;
+  cut: boolean;
+  floorHeightMm: number;
+  children: ReactNode;
 }) {
-  const geometry = useMemo(() => wallGeometry(outline, base, height), [outline, base, height]);
-  useEffect(() => () => geometry.dispose(), [geometry]);
+  const y = base / 1000;
   return (
-    <mesh geometry={geometry} castShadow receiveShadow onClick={onPick}>
-      {colors.map((color, i) => (
-        <meshStandardMaterial
-          key={i}
-          attach={`material-${i}`}
-          color={color}
-          side={DoubleSide}
-          roughness={0.9}
-        />
-      ))}
-    </mesh>
+    <group position-y={y} scale-y={cut ? cutScale(floorHeightMm / 1000) : 1}>
+      <group position-y={-y}>{children}</group>
+    </group>
   );
 }
 
-function FloorModel({ floor, project, selection }: { floor: Floor; project: Project; selection: Selection }) {
-  const building = mainBuilding(project);
-  const elevation = building ? floorElevation(building, floor.id) : 0;
+interface FloorModelProps {
+  cut: ReadonlySet<string>;
+  floor: Floor;
+  building: Building;
+  elevation: number;
+  project: Project;
+  selection: Selection;
+}
+
+function FloorModel({ floor, building, elevation, project, selection, cut }: FloorModelProps) {
   const { outlines, rooms } = useMemo(() => floorGeometry(floor), [floor]);
+  const ceilingSlabMm = ceilingSlabThickness(building, floor.id);
+  // Only stairs that arrive here and cut a void affect the slabs; a stable key keeps unrelated stair
+  // edits (and dragging other stairs) from rebuilding them.
+  const voidStairsKey = JSON.stringify(
+    Object.values(building.stairs).filter((s) => s.toFloorId === floor.id && s.cutsVoid),
+  );
+  const voidStairs = useMemo(() => JSON.parse(voidStairsKey) as Stair[], [voidStairsKey]);
+  const slabs = useMemo(() => floorSlabs(floor, voidStairs), [floor, voidStairs]);
+  const ceilingPieces = useMemo(
+    () =>
+      Object.values(floor.ceilingPlanes).flatMap((plane) =>
+        Object.values(rooms).flatMap((room) =>
+          ceilingPlanePieces(plane, floor, room.polygon, ceilingSlabMm).map((polygon, i) => ({
+            key: `${plane.id}-${room.roomId}-${i}`,
+            plane,
+            polygon,
+            roomId: room.roomId,
+          })),
+        ),
+      ),
+    [floor, rooms, ceilingSlabMm],
+  );
   const { select, setActiveFloor } = useViewStore.getState();
 
   const pick = (e: ThreeEvent<MouseEvent>, kind: 'wall' | 'room', id: string) => {
@@ -91,6 +91,15 @@ function FloorModel({ floor, project, selection }: { floor: Floor; project: Proj
 
   return (
     <group>
+      {slabs.map((slab, i) => (
+        <SlabMesh
+          key={i}
+          slab={slab}
+          elevation={elevation}
+          thickness={floor.slabThickness}
+          color={SLAB_COLOR}
+        />
+      ))}
       {Object.values(rooms).map((room) => {
         const color =
           findMaterial(project, floor.rooms[room.roomId]?.floorFinish.materialId)?.color ?? '#d9cbb5';
@@ -117,46 +126,51 @@ function FloorModel({ floor, project, selection }: { floor: Floor; project: Proj
               CAP_COLOR,
             ];
         return (
-          <WallMesh
-            key={wall.id}
-            outline={outline}
-            base={elevation}
-            height={wall.height ?? floor.height - floor.slabThickness}
-            colors={colors}
-            onPick={(e) => pick(e, 'wall', wall.id)}
-          />
+          <CutGroup key={wall.id} base={elevation} cut={cut.has(wall.id)} floorHeightMm={floor.height}>
+            <WallMesh
+              floor={floor}
+              wall={wall}
+              outline={outline}
+              base={elevation}
+              colors={colors}
+              ceilingSlabMm={ceilingSlabMm}
+              onPick={(e) => pick(e, 'wall', wall.id)}
+            />
+          </CutGroup>
         );
       })}
+      {Object.values(floor.openings).map((opening) => {
+        const wall = floor.walls[opening.wallId];
+        return wall ? (
+          <CutGroup key={opening.id} base={elevation} cut={cut.has(wall.id)} floorHeightMm={floor.height}>
+            <OpeningMesh floor={floor} wall={wall} opening={opening} base={elevation} />
+          </CutGroup>
+        ) : null;
+      })}
+      {ceilingPieces.map(({ key, plane, polygon, roomId }) => (
+        <CeilingMesh
+          key={key}
+          plane={plane}
+          polygon={polygon}
+          elevation={elevation}
+          color={floor.rooms[roomId]?.ceilingColor ?? '#ffffff'}
+        />
+      ))}
     </group>
   );
 }
 
-/** Points the camera at the house when a project or floor is opened (not on every edit). */
-function CameraRig({ project }: { project: Project }) {
-  const controls = useThree((s) => s.controls) as unknown as {
-    target: { set: (x: number, y: number, z: number) => void };
-    update: () => void;
-  } | null;
-  const camera = useThree((s) => s.camera);
-  const invalidate = useThree((s) => s.invalidate);
-  const projectId = project.id;
-  const variantId = project.activeVariantId;
-
-  useEffect(() => {
-    const nodes = orderedFloors(useProjectStore.getState().project).flatMap((f) =>
-      Object.values(f.wallNodes).map((n) => n.position),
-    );
-    const box = boundingBox(nodes);
-    const cx = box ? (box.min.x + box.max.x) / 2000 : 0;
-    const cz = box ? -(box.min.y + box.max.y) / 2000 : 0;
-    const span = box ? Math.max(box.max.x - box.min.x, box.max.y - box.min.y) / 1000 : 10;
-    const distance = Math.max(8, span * 1.4);
-    camera.position.set(cx + distance * 0.6, distance * 0.8, cz + distance * 0.8);
-    controls?.target.set(cx, 0, cz);
-    controls?.update();
-    invalidate();
-  }, [projectId, variantId, camera, controls, invalidate]);
-  return null;
+/** A stair as solid steps rising from the lower floor level to the upper one. */
+function StairModel({ stair, from, to }: { stair: Stair; from: number; to: number }) {
+  const { steps } = useMemo(() => stairGeometry(stair), [stair]);
+  const riser = (to - from) / Math.max(1, steps.length);
+  return (
+    <group>
+      {steps.map((polygon, i) => (
+        <StepMesh key={i} polygon={polygon} bottom={from} top={from + riser * (i + 1)} color={STAIR_COLOR} />
+      ))}
+    </group>
+  );
 }
 
 /**
@@ -167,7 +181,37 @@ export default function Scene3D() {
   const { t } = useTranslation();
   const project = useProjectStore((s) => s.project);
   const selection = useViewStore((s) => s.selection);
+  const stackMode = useViewStore((s) => s.stackMode);
+  const activeFloorId = useViewStore((s) => s.activeFloorId);
+  const cutaway = useViewStore((s) => s.cutaway);
+  const inside = useViewStore((s) => s.insideView);
+  const [cut, setCut] = useState<ReadonlySet<string>>(new Set());
   const floors = orderedFloors(project);
+  const building = mainBuilding(project);
+  const elevations = useMemo(() => (building ? floorElevations(building) : {}), [building]);
+  const visible = visibleFloorIds(
+    floors.map((f) => f.id),
+    resolveFloor(project, activeFloorId)?.id ?? null,
+    // Inside a room the floors above would close the ceiling over the camera: never show them.
+    inside && stackMode === 'all' ? 'upTo' : stackMode,
+  );
+  const visibleKey = [...visible].join(',');
+  const cutWalls = useMemo<CutWall[]>(
+    () =>
+      orderedFloors(project)
+        .filter((f) => visibleKey.split(',').includes(f.id))
+        .flatMap((floor) => {
+          const box = floorBox(floor);
+          if (!box) return [];
+          const centre = { x: (box.min.x + box.max.x) / 2, y: (box.min.y + box.max.y) / 2 };
+          return Object.values(floor.walls).map((wall) => ({
+            id: wall.id,
+            ...wallEnds(floor, wall),
+            centre,
+          }));
+        }),
+    [project, visibleKey],
+  );
 
   return (
     <Canvas
@@ -207,11 +251,42 @@ export default function Scene3D() {
         fadeDistance={80}
         infiniteGrid
       />
-      {floors.map((floor) => (
-        <FloorModel key={floor.id} floor={floor} project={project} selection={selection} />
-      ))}
-      <OrbitControls makeDefault maxPolarAngle={Math.PI / 2 - 0.05} minDistance={2} maxDistance={150} />
-      <CameraRig project={project} />
+      {building &&
+        floors
+          .filter((floor) => visible.has(floor.id))
+          .map((floor) => (
+            <FloorModel
+              key={floor.id}
+              floor={floor}
+              building={building}
+              elevation={elevations[floor.id] ?? 0}
+              project={project}
+              selection={selection}
+              cut={cut}
+            />
+          ))}
+      {building &&
+        Object.values(building.stairs)
+          .filter((s) => visible.has(s.fromFloorId) || visible.has(s.toFloorId))
+          .map((stair) => (
+            <StairModel
+              key={stair.id}
+              stair={stair}
+              from={elevations[stair.fromFloorId] ?? 0}
+              to={elevations[stair.toFloorId] ?? 0}
+            />
+          ))}
+      <OrbitControls
+        makeDefault
+        maxPolarAngle={inside ? Math.PI - 0.05 : Math.PI / 2 - 0.05}
+        minPolarAngle={inside ? 0.05 : 0}
+        minDistance={inside ? 0.01 : 2}
+        maxDistance={150}
+        enableZoom={!inside}
+        enablePan={!inside}
+      />
+      <CameraRig project={project} inside={inside} />
+      <CutawayDriver walls={cutWalls} enabled={cutaway && !inside} onChange={setCut} />
     </Canvas>
   );
 }

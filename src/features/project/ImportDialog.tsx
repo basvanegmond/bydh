@@ -61,7 +61,7 @@ export function ImportDialog() {
           type="file"
           accept="application/json,.json"
           data-testid="import-file"
-          className="text-sm"
+          className="text-sm file:mr-3 file:cursor-pointer file:rounded-md file:border file:border-border file:bg-secondary file:px-3 file:py-1 file:text-sm file:font-medium file:text-blue-600 hover:file:bg-accent dark:file:text-blue-400"
           onChange={async (e) => {
             const picked = e.target.files?.[0];
             setMessage(null);

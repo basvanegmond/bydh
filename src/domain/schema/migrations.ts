@@ -7,6 +7,7 @@ type Migration = (file: RawFile) => RawFile;
 /** Add an entry here whenever SCHEMA_VERSION is bumped; never edit a released migration. */
 export const migrations: Record<number, Migration> = {
   1: migrateV1ToV2,
+  2: migrateV2ToV3,
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -29,6 +30,25 @@ function migrateV1ToV2(file: RawFile): RawFile {
       if (!isRecord(building) || !isRecord(building['floors'])) continue;
       for (const floor of Object.values(building['floors'])) {
         if (isRecord(floor)) delete floor['elevation'];
+      }
+    }
+  }
+  return next;
+}
+
+/** v2 -> v3: floors gain `ceilingPlanes` (sloped ceilings); existing floors get an empty record. */
+function migrateV2ToV3(file: RawFile): RawFile {
+  const next = structuredClone(file);
+  const project = next['project'];
+  if (!isRecord(project) || !isRecord(project['variants'])) return next;
+  for (const variant of Object.values(project['variants'])) {
+    const scene = isRecord(variant) ? variant['scene'] : undefined;
+    const buildings = isRecord(scene) ? scene['buildings'] : undefined;
+    if (!isRecord(buildings)) continue;
+    for (const building of Object.values(buildings)) {
+      if (!isRecord(building) || !isRecord(building['floors'])) continue;
+      for (const floor of Object.values(building['floors'])) {
+        if (isRecord(floor) && floor['ceilingPlanes'] === undefined) floor['ceilingPlanes'] = {};
       }
     }
   }
