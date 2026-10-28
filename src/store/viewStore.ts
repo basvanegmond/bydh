@@ -59,6 +59,12 @@ interface ViewState {
   ghostFloor: boolean;
   /** Which floors the 3D view draws. */
   stackMode: StackMode;
+  /** Lower the walls between the camera and the target in 3D so the interior is visible. */
+  cutaway: boolean;
+  /** 3D camera at eye height inside a room (not persisted). */
+  insideView: boolean;
+  /** Bumped by the "reset view" button; the 3D camera re-frames when it changes. */
+  resetViewTick: number;
   setViewMode: (mode: ViewMode) => void;
   setTool: (tool: Tool) => void;
   setActiveFloor: (floorId: Id) => void;
@@ -72,6 +78,9 @@ interface ViewState {
   toggleHeadroom: () => void;
   toggleGhostFloor: () => void;
   setStackMode: (mode: StackMode) => void;
+  toggleCutaway: () => void;
+  toggleInsideView: () => void;
+  resetView: () => void;
 }
 
 /** Per-viewer UI state: never part of the project file and never in undo history. */
@@ -89,7 +98,10 @@ export const useViewStore = create<ViewState>()(
       showHeadroom: true,
       headroomLimits: DEFAULT_HEADROOM,
       ghostFloor: true,
-      stackMode: 'all',
+      stackMode: 'upTo',
+      cutaway: true,
+      insideView: false,
+      resetViewTick: 0,
       setViewMode: (viewMode) => set({ viewMode }),
       setTool: (tool) => set({ tool }),
       setActiveFloor: (activeFloorId) => set({ activeFloorId, selection: null }),
@@ -113,6 +125,9 @@ export const useViewStore = create<ViewState>()(
       toggleHeadroom: () => set((state) => ({ showHeadroom: !state.showHeadroom })),
       toggleGhostFloor: () => set((state) => ({ ghostFloor: !state.ghostFloor })),
       setStackMode: (stackMode) => set({ stackMode }),
+      toggleCutaway: () => set((state) => ({ cutaway: !state.cutaway })),
+      toggleInsideView: () => set((state) => ({ insideView: !state.insideView })),
+      resetView: () => set((state) => ({ insideView: false, resetViewTick: state.resetViewTick + 1 })),
     }),
     {
       name: `bydh.view.${__DEPLOY_CHANNEL__}`,
@@ -128,6 +143,7 @@ export const useViewStore = create<ViewState>()(
         headroomLimits: state.headroomLimits,
         ghostFloor: state.ghostFloor,
         stackMode: state.stackMode,
+        cutaway: state.cutaway,
       }),
     },
   ),
