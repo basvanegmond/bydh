@@ -27,7 +27,7 @@
     "dexie": "^4.4.7",
     "i18next": "^26.5.11",
     "immer": "^11.2.9",
-    "lucide-react": "^1.62.0",
+    "lucide-react": "^1.66.0",
     "pdfjs-dist": "^6.4.299",
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
